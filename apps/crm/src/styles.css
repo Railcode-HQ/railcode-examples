@@ -2314,13 +2314,13 @@ table.data tbody tr:hover {
   flex: 1;
 }
 
-.cmdpreview {
+.cmdresults {
   max-height: 46vh;
   overflow-y: auto;
-  padding: 14px 18px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .pvgroup .pvlabel {
@@ -2329,88 +2329,54 @@ table.data tbody tr:hover {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--faint);
-  margin-bottom: 8px;
+  margin: 0 8px 5px;
 }
 
-.pvitem {
+.srow {
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  margin-bottom: 8px;
-  background: var(--raised);
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
 }
 
-.pvitem:last-child {
-  margin-bottom: 0;
+.srow.sel {
+  background: var(--accent-soft);
 }
 
-.pvitem.off {
-  opacity: 0.45;
-}
-
-.pvitem .glyph {
+.srow .glyph {
   width: 30px;
   height: 30px;
+  flex-shrink: 0;
 }
 
-.pvitem .pvbody {
+.srow .srbody {
   flex: 1;
   min-width: 0;
 }
 
-.pvitem .pvname {
+.srow .srname {
   font-size: 13px;
   font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.pvitem .pvmeta {
+.srow .srmeta {
   font-size: 11.5px;
   color: var(--dim);
-  margin-top: 2px;
-}
-
-.pvitem .new {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--green);
-  background: var(--green-soft);
-  padding: 2px 7px;
-  border-radius: 999px;
-}
-
-.pvitem .existing {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--dim);
-  background: var(--tile);
-  padding: 2px 7px;
-  border-radius: 999px;
-}
-
-.toggle {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  border: 1.5px solid var(--line);
-  background: #fff;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  color: #fff;
-}
-
-.toggle.on {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.toggle svg {
-  width: 12px;
-  height: 12px;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* spinner */

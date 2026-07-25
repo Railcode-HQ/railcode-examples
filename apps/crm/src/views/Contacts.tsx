@@ -95,7 +95,7 @@ export function Contacts() {
             <div className="es">
               {q
                 ? "Try a different search."
-                : "Add one with New contact, or use Quick add (⌘K)."}
+                : "Add one with New contact, or tell Ask AI who to add."}
             </div>
           </div>
         )}

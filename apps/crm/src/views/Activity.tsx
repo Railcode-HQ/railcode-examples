@@ -70,7 +70,8 @@ export function Activity() {
             <ActivityIcon />
             <div className="et">No activity yet</div>
             <div className="es">
-              Use Quick add (⌘K) to create your first company, contact, or deal.
+              Create your first company, contact, or deal — or tell Ask AI who
+              to add.
             </div>
           </div>
         )}

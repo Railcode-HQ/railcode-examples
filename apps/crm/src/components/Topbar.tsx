@@ -1,4 +1,4 @@
-import { Menu, Search, Sparkles } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 
 import { EntityType } from "@/lib/crm";
 import { VIEW_LABELS } from "@/lib/routes";
@@ -16,7 +16,7 @@ export function Topbar() {
     search,
     setSearch,
     setNavOpen,
-    setCommandOpen,
+    setSearchOpen,
     setView,
     record,
     companies,
@@ -69,19 +69,19 @@ export function Topbar() {
           <Search />
           <input
             value={search}
-            placeholder={`Search ${VIEW_LABELS[view].toLowerCase()}…`}
+            placeholder={`Filter ${VIEW_LABELS[view].toLowerCase()}…`}
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
       )}
 
       <button
-        className="btn"
-        onClick={() => setCommandOpen(true)}
-        title="Quick add (⌘K)"
+        className="btn ghost"
+        onClick={() => setSearchOpen(true)}
+        title="Search everything (⌘K)"
       >
-        <Sparkles />
-        Quick add
+        <Search />
+        Search
       </button>
     </div>
   );

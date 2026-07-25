@@ -16,7 +16,6 @@ import {
   nowIso,
   stage,
 } from "@/lib/crm";
-import { ParsedCommand } from "@/lib/parse";
 import { Identity, collection, getIdentity } from "@/lib/railcode";
 import { View, canonicalizePath, pushView, viewFromPath } from "@/lib/routes";
 
@@ -60,14 +59,14 @@ type CrmState = {
   search: string;
   record: RecordRoute;
   navOpen: boolean;
-  commandOpen: boolean;
+  searchOpen: boolean;
 
   setView: (v: View) => void;
   /** Adopt the view the URL names — for the browser's Back/Forward buttons. */
   syncFromUrl: () => void;
   setSearch: (s: string) => void;
   setNavOpen: (b: boolean) => void;
-  setCommandOpen: (b: boolean) => void;
+  setSearchOpen: (b: boolean) => void;
   openRecord: (type: EntityType, id: string) => void;
   /** Open a record on the list view it belongs to, URL included. */
   showRecord: (view: View, type: EntityType, id: string) => void;
@@ -99,7 +98,6 @@ type CrmState = {
   refreshActivities: () => Promise<void>;
 
   findCompanyByName: (name: string) => Company | undefined;
-  applyCommand: (parsed: ParsedCommand) => Promise<void>;
 };
 
 const companiesCol = () => collection<Company>("companies");
@@ -144,7 +142,7 @@ export const useCrmStore = create<CrmState>((set, get) => {
     search: "",
     record: null,
     navOpen: false,
-    commandOpen: false,
+    searchOpen: false,
 
     // Switching lists closes any open record page and returns to that list.
     setView: (view) => {
@@ -164,7 +162,7 @@ export const useCrmStore = create<CrmState>((set, get) => {
 
     setSearch: (search) => set({ search }),
     setNavOpen: (navOpen) => set({ navOpen }),
-    setCommandOpen: (commandOpen) => set({ commandOpen }),
+    setSearchOpen: (searchOpen) => set({ searchOpen }),
     openRecord: (type, id) => set({ record: { mode: "view", type, id } }),
     showRecord: (view, type, id) => {
       set({ view, record: { mode: "view", type, id } });
@@ -551,71 +549,6 @@ export const useCrmStore = create<CrmState>((set, get) => {
     findCompanyByName(name) {
       const n = norm(name);
       return get().companies.find((c) => norm(c.name) === n);
-    },
-
-    async applyCommand(parsed) {
-      try {
-        // company: reuse existing by name, else create
-        let companyId: string | undefined;
-        if (parsed.company) {
-          const existing = get().findCompanyByName(parsed.company.name);
-          if (existing) {
-            companyId = existing.id;
-            // backfill missing fields without clobbering
-            if (
-              (parsed.company.domain && !existing.domain) ||
-              (parsed.company.industry && !existing.industry)
-            ) {
-              await get().saveCompany({
-                id: existing.id,
-                name: existing.name,
-                domain: existing.domain ?? parsed.company.domain,
-                industry: existing.industry ?? parsed.company.industry,
-              });
-            }
-          } else {
-            const created = await get().saveCompany(parsed.company);
-            companyId = created.id;
-          }
-        }
-
-        // contacts
-        const contactIds: string[] = [];
-        for (const c of parsed.contacts) {
-          const created = await get().saveContact({ ...c, companyId });
-          contactIds.push(created.id);
-        }
-        const primaryContact = contactIds[0];
-
-        // deals
-        const dealIds: string[] = [];
-        for (const d of parsed.deals) {
-          const created = await get().saveDeal({
-            ...d,
-            companyId,
-            contactId: primaryContact,
-          });
-          dealIds.push(created.id);
-        }
-
-        // note → most specific created entity
-        if (parsed.note) {
-          if (dealIds[0]) await get().addNote("deal", dealIds[0], parsed.note);
-          else if (contactIds[0])
-            await get().addNote("contact", contactIds[0], parsed.note);
-          else if (companyId)
-            await get().addNote("company", companyId, parsed.note);
-        }
-
-        // land the user on the most meaningful new record
-        set({ commandOpen: false });
-        if (dealIds[0]) get().showRecord("pipeline", "deal", dealIds[0]);
-        else if (contactIds[0]) get().showRecord("contacts", "contact", contactIds[0]);
-        else if (companyId) get().showRecord("companies", "company", companyId);
-      } catch (error) {
-        set({ error: cleanError(error) });
-        throw error;
-      }
     },
   };
 

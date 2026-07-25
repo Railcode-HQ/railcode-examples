@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
-import { CommandBar } from "@/components/CommandBar";
 import { DealProposalModal } from "@/components/DealProposalModal";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { GranolaModal } from "@/components/GranolaModal";
 import { RecordPage } from "@/components/RecordPage";
 import { Sidebar } from "@/components/Sidebar";
@@ -25,12 +25,12 @@ export function App() {
     loaded,
     error,
     navOpen,
-    commandOpen,
+    searchOpen,
     record,
     bootstrap,
     syncFromUrl,
     setNavOpen,
-    setCommandOpen,
+    setSearchOpen,
     clearError,
   } = useCrmStore();
   const {
@@ -91,23 +91,23 @@ export function App() {
     return () => window.clearInterval(id);
   }, [loaded, refreshAutomations]);
 
-  // global shortcuts: ⌘K / Ctrl+K opens Quick add; Esc closes layers
+  // global shortcuts: ⌘K / Ctrl+K opens search; Esc closes layers
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setCommandOpen(!useCrmStore.getState().commandOpen);
+        setSearchOpen(!useCrmStore.getState().searchOpen);
         return;
       }
       if (e.key === "Escape") {
         const s = useCrmStore.getState();
-        if (s.commandOpen) setCommandOpen(false);
+        if (s.searchOpen) setSearchOpen(false);
         else if (s.navOpen) setNavOpen(false);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setCommandOpen, setNavOpen]);
+  }, [setSearchOpen, setNavOpen]);
 
   if (!loaded) {
     return (
@@ -177,7 +177,7 @@ export function App() {
         </div>
       </main>
 
-      {commandOpen ? <CommandBar /> : null}
+      {searchOpen ? <GlobalSearch /> : null}
       <GranolaModal />
       <DealProposalModal />
     </div>
