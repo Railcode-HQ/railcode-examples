@@ -143,6 +143,7 @@ export const TOOL_META: Record<string, { label: string; kind: ToolKind }> = {
   save_call_note: { label: "Save call note", kind: "write" },
   add_activity_note: { label: "Log note", kind: "write" },
   delete_record: { label: "Delete record", kind: "write" },
+  run_automation: { label: "Run automation", kind: "write" },
   // display
   render_table: { label: "Table", kind: "display" },
   render_chart: { label: "Chart", kind: "display" },

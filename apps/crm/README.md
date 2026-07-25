@@ -42,7 +42,7 @@ the workspace and makes the same changes a person could make by hand.
 
 ```text
 src/lib/ask.ts            types, the tool registry, arg coercion
-src/lib/ask-tools.ts      the 20 tools the agent can call
+src/lib/ask-tools.ts      the 22 tools the agent can call
 src/lib/ask-agent.ts      system prompt, workspace snapshot, model choice
 src/store/ask-store.ts    transcript, streaming, approval gating
 src/views/AskAi.tsx       the page

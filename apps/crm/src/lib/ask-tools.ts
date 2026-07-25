@@ -48,12 +48,24 @@ import {
   asStage,
   asString,
 } from "@/lib/ask";
-import { displayName, effectiveStatus, formatBytes } from "@/lib/automations";
+import {
+  AUTOMATION_ID,
+  ArtifactFormat,
+  FORMAT_LABEL,
+  displayName,
+  effectiveStatus,
+  formatBytes,
+  isLocalDev,
+  templateFor,
+} from "@/lib/automations";
 import { LlmTool } from "@/lib/railcode";
 import {
+  automationRecord,
   dealInputFiles,
   fileUrl,
+  meetingsForDeal,
   runForDeal,
+  templateFiles,
   useAutomationStore,
 } from "@/store/automation-store";
 import { useCrmStore } from "@/store/crm-store";
@@ -1730,6 +1742,129 @@ export function buildAskTools(requestApproval: RequestApproval): LlmTool[] {
         links: [dealLink(deal)].filter(Boolean) as RecordLink[],
         data: all,
       } satisfies ToolOutcome;
+    },
+  });
+
+  // === automations ==========================================================
+
+  tools.push({
+    name: "run_automation",
+    description:
+      "Start the proposal automation for a deal: a background agent reads the deal's meetings and " +
+      "uploaded files and generates a client-ready Word document (docx) or PowerPoint deck (pptx). " +
+      "Use it when the user asks you to generate a proposal, deck or document for a deal. The run " +
+      "takes a couple of minutes and keeps going after this conversation — the document lands on " +
+      "the deal (see list_deal_files) and the user is notified. Needs approval.",
+    schema: {
+      type: "object",
+      properties: {
+        dealId: { type: "string", description: "The deal's id." },
+        format: {
+          type: "string",
+          enum: ["docx", "pptx"],
+          description:
+            "docx for a Word document, pptx for a PowerPoint deck. Omit to use the automation's default.",
+        },
+        instructions: {
+          type: "string",
+          description:
+            "Anything specific for this run — what to focus on or leave out. Pass the user's own wording.",
+        },
+      },
+      required: ["dealId"],
+    },
+    run: async (args: Record<string, unknown>) => {
+      const deal = requireDeal(asString(args.dealId));
+      const automation = useAutomationStore.getState();
+      const record = automationRecord(automation.records, AUTOMATION_ID);
+      const wanted = asString(args.format);
+      const format: ArtifactFormat =
+        wanted === "docx" || wanted === "pptx" ? wanted : record.defaultFormat;
+      const instructions = asString(args.instructions);
+
+      if (isLocalDev()) {
+        return {
+          observation:
+            "`railcode dev` emulates storage locally but doesn't run managed agents, so the " +
+            "automation only works against the deployed app. Tell the user to run it there.",
+          summary: "Automations don't run in local dev",
+        } satisfies ToolOutcome;
+      }
+
+      const current = runForDeal(automation.runs, deal.id);
+      if (current && effectiveStatus(current) === "running") {
+        return {
+          observation:
+            `A ${FORMAT_LABEL[current.format]} is already being generated for "${deal.title}". ` +
+            `Don't start another — tell the user it's underway and will land on the deal shortly.`,
+          summary: `${deal.title} · already generating`,
+          links: [dealLink(deal)!],
+        } satisfies ToolOutcome;
+      }
+
+      const meetings = meetingsForDeal(deal.id).length;
+      const inputs = dealInputFiles(automation.files, deal.id).length;
+      const template = templateFor(templateFiles(automation.files), format);
+
+      return gate(
+        {
+          tool: "run_automation",
+          title: "Run automation",
+          subject: deal.title,
+          fields: [
+            { label: "Generate", value: `${FORMAT_LABEL[format]} (.${format})` },
+            {
+              label: "From",
+              value: `${plural(meetings, "meeting")}, ${plural(inputs, "uploaded file")}, ${
+                template ? `template: ${template.name}` : "no template"
+              }`,
+            },
+            ...(instructions ? [{ label: "Focus", value: instructions }] : []),
+            ...(record.enabled
+              ? []
+              : [
+                  {
+                    label: "Note",
+                    value: "Switched off on the Automations page — this is a one-off run.",
+                  },
+                ]),
+          ],
+          destructive: false,
+        },
+        async () => {
+          // runArtifact reports problems through store state rather than throwing,
+          // so compare the newest run before and after to learn what happened.
+          const beforeId = runForDeal(useAutomationStore.getState().runs, deal.id)?.id;
+          await useAutomationStore.getState().runArtifact({
+            dealId: deal.id,
+            format,
+            extraContext: instructions,
+          });
+          const after = useAutomationStore.getState();
+          const run = runForDeal(after.runs, deal.id);
+          if (!run || run.id === beforeId || run.status === "failed") {
+            const message =
+              (run && run.id !== beforeId ? run.error : undefined) ??
+              after.error ??
+              "The run couldn't start.";
+            return {
+              observation: `The automation didn't start: ${message}\nDon't retry — explain this to the user.`,
+              summary: `${deal.title} · couldn't start`,
+              links: [dealLink(deal)!],
+            } satisfies ToolOutcome;
+          }
+          return {
+            observation:
+              `Started generating a ${FORMAT_LABEL[format]} for "${deal.title}". It takes a couple ` +
+              `of minutes and keeps running in the background, even if the user navigates away. The ` +
+              `finished document will appear on the deal and in their notifications. Don't wait or ` +
+              `poll — tell the user it's underway.`,
+            summary: `Generating ${FORMAT_LABEL[format]} · ${deal.title}`,
+            links: [dealLink(deal)!],
+            data: { runId: run.id, dealId: deal.id, format, startedAt: run.startedAt },
+          } satisfies ToolOutcome;
+        },
+      );
     },
   });
 

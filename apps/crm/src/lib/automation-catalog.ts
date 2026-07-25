@@ -36,7 +36,7 @@ export const AUTOMATION_CATALOG: AutomationDef[] = [
     summary:
       "Writes a Word document or PowerPoint deck from the deal's meetings and files, in your own template.",
     icon: FileText,
-    trigger: "The Generate button on a deal, or on a card in the pipeline board.",
+    trigger: "The Generate button on a deal or a pipeline card, or asking Ask AI to generate one.",
     produces: "A .docx or .pptx attached to the deal, with a download link.",
     reads: [
       "The deal's meetings, newest first",
