@@ -1,9 +1,17 @@
 run_as: app
 
-# Deliberately empty of authority beyond the app's own storage.
+# One authority, and only one: starting `proposal-writer` when someone presses
+# Run now. The cron schedule is still the agent's normal trigger — this is the
+# impatient path, not a replacement for it.
 #
-# This app reads what the agent wrote and saves edits back — nothing else. It
-# does not invoke the agent (the cron schedule is the only trigger, so there is
-# no `agents:` grant) and it does not call Granola itself (the agent owns that,
-# so there is no `personal_connectors:` grant). Every meeting the app displays
-# reached it as a field on a proposal record.
+# Everything else stays absent. The app does not call Granola (the agent owns
+# that connector, so there is no `personal_connectors:` grant), so every meeting
+# the app displays still reached it as a field on a proposal record.
+#
+# `agents:` ratifies against the deploying user's own grants, and proposal-writer
+# is a PERSONAL agent — invoking one is owner-only, with no admin override. So
+# Run now is expected to work for the person who created the agent and to fail
+# for everyone else. The app has no way to ask who that is, so it shows the
+# button to everyone and explains the failure (see `agentCallError`) rather than
+# hiding it behind a guess.
+agents: [proposal-writer]

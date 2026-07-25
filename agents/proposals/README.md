@@ -1,11 +1,13 @@
 # proposals
 
-A proposal writer that nobody triggers.
+A proposal writer that nobody has to trigger.
 
 Every 30 minutes `proposal-writer` reads your recent Granola meetings, decides
 which ones clearly ended with *"send us a proposal"*, and drafts an editable
-`.docx` for one of them. The app is a reader: it shows what the agent produced,
-why it thought a proposal was warranted, and when it last looked.
+`.docx` for one of them. The app is mostly a reader: it shows what the agent
+produced, why it thought a proposal was warranted, and when it last looked.
+There is a **Run now** button for when 30 minutes is too long to wait, but it
+starts the same run the schedule would have — it doesn't ask for anything.
 
 The interesting part is not the drafting — it's everything around running
 unattended on a short cycle: not reprocessing a meeting, not flooding you with
@@ -17,12 +19,13 @@ most runs correctly do nothing.
 | | |
 | --- | --- |
 | `agents/proposal-writer/agent.yaml` | The agent. Personal (Granola is a personal connector), scheduled, `agent_kv` for its ledger, `app_data_write` to publish into the app. |
-| everything else | The companion app, slug `proposals`. Lists drafts, opens them in an editor, saves edits back. |
+| everything else | The companion app, slug `proposals`. Lists drafts, opens them in an editor, saves edits back, and can start a run. |
 
-The app holds no authority of its own — `manifest.yaml` is `run_as: app` and
-nothing else. It never calls Granola and never invokes the agent. That split is
-the point: agents can't own files or storage, so the app exists to *be* the
-agent's storage and its window.
+The app holds one authority — `agents: [proposal-writer]`, for the Run now
+button — and nothing else. It never calls Granola: that connector belongs to the
+agent, and every meeting the app displays reached it as a field on a proposal
+record. That split is the point: agents can't own files or storage, so the app
+exists to *be* the agent's storage and its window.
 
 ## Run it
 
@@ -96,6 +99,42 @@ Without it an empty screen can't distinguish "nothing qualified" from "the
 schedule was never created", which is the failure mode of every unattended
 agent. `AgentStatus.tsx` renders it, and flags a last-run older than 90 minutes.
 
+## Run now
+
+The button in the status panel starts the same run the cron would, with **no
+input** — the agent declares no `input_schema` and decides what to do from its
+ledger, so there is nothing for a caller to say. It uses `agents.start` and polls
+`agents.get`, not `agents.invoke`, which would hold a request open for the run's
+full 300 seconds.
+
+Three things it has to get right:
+
+- **Two runs must never overlap.** It is the one duplicate the ledger cannot
+  prevent: both runs read the ledger before either writes to it, so both see the
+  same meeting as new and both draft it. While a run is in flight the app keeps a
+  marker in shared KV (`state/manualRun`), which is what greys the button out in
+  *every* tab and what lets a reloaded one resume polling. It's deleted on a
+  terminal status, and a lost poll deliberately leaves it alone — a run that
+  stopped reporting is usually still running. `RUN_STALE_AFTER_MS` (10 minutes,
+  against the agent's 300-second ceiling) releases a marker whose poller died.
+
+- **It can fail for a reason that isn't a bug.** `proposal-writer` is
+  `personal`, and invoking a personal agent is owner-only with no admin
+  override — so Run now works for whoever created the agent and 404s for
+  everyone else on the team, who can still read every proposal it writes. The app
+  can't ask who the owner is, so it shows the button to all and explains the
+  failure (`agentCallError`) rather than hiding it behind a guess.
+
+  Worth knowing while developing: **`railcode dev` proxies agent runs to the real
+  backend.** Unlike KV and files, they are not emulated — pressing Run now
+  against `127.0.0.1:7331` starts a real run, as the real owner, against the real
+  Granola account. There is no local dry-run.
+
+- **Most runs still do nothing.** A manual run is subject to the same triage and
+  the same one-per-run limit, so pressing it usually ends in *"checked 4
+  meetings — nothing new needs a proposal"*. That's reported as a notice rather
+  than left as silence, because someone is now watching this particular run.
+
 ## Traps worth knowing
 
 These cost real debugging time and none of them fail loudly.
@@ -134,6 +173,8 @@ These cost real debugging time and none of them fail loudly.
   so expect bracketed placeholders for pricing. Add `app_files: [proposals]` to
   the manifest and an upload view to the app, and have it read a rate card — the
   sibling [`agents/pitch-deck`](../pitch-deck) example does exactly that.
-- **Let a human trigger one.** Add `agents: [proposal-writer]` to the app's
-  manifest and call `agents.start(...)`; poll the run rather than
-  `agents.invoke`, which would hold a request open for minutes.
+- **Let a human pick the meeting.** Run now deliberately takes no input, which
+  means it drafts whatever the agent's own triage picks. Giving it a specific
+  meeting means adding an `input_schema`-free contract in the `system` prompt for
+  an optional `{meetingId}` — and note the run must still work with `null` input,
+  because the schedule keeps firing.

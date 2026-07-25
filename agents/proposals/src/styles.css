@@ -929,6 +929,15 @@ nav {
   gap: 9px;
 }
 
+/* Pushed to the far edge of the heartbeat line, and pulled back vertically so
+   putting a control in the panel doesn't cost it the density it reads well at. */
+.run-status .rs-run {
+  flex: none;
+  margin-left: auto;
+  margin-top: -4px;
+  margin-bottom: -4px;
+}
+
 .run-status .rs-sub {
   font-size: 12px;
   font-weight: 400;
