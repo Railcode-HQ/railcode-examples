@@ -6,8 +6,10 @@ import {
   House,
   Kanban,
   ListChecks,
+  Moon,
   RefreshCw,
   Sparkles,
+  Sun,
   Users,
   Wallet,
   Workflow,
@@ -20,6 +22,7 @@ import { hrefFor } from "@/lib/routes";
 import { View, useCrmStore } from "@/store/crm-store";
 import { unreadCount, useAutomationStore } from "@/store/automation-store";
 import { useGranolaStore } from "@/store/granola-store";
+import { useThemeStore } from "@/store/theme-store";
 
 const NAV: { id: View; label: string; icon: typeof House }[] = [
   { id: "home", label: "Home", icon: House },
@@ -45,6 +48,26 @@ function navClick(e: MouseEvent, id: View, setView: (v: View) => void) {
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   e.preventDefault();
   setView(id);
+}
+
+/**
+ * The icon shows what a press will *do*, not what's on screen — same as the
+ * tooltip, so the two can't contradict each other.
+ */
+function ThemeToggle() {
+  const { theme, toggle } = useThemeStore();
+  const next = theme === "dark" ? "light" : "dark";
+
+  return (
+    <button
+      className="themetoggle"
+      onClick={toggle}
+      title={`Switch to ${next} mode`}
+      aria-label={`Switch to ${next} mode`}
+    >
+      {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+    </button>
+  );
 }
 
 export function Sidebar() {
@@ -168,6 +191,7 @@ export function Sidebar() {
             </div>
           ) : null}
         </div>
+        <ThemeToggle />
       </div>
     </aside>
   );

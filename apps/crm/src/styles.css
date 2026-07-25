@@ -4,6 +4,10 @@
    Railcode Admin — Design System (Linear floating-panel variant)
    ============================================================ */
 
+/* Every colour in this file comes from a token below, so the dark theme is a
+   swap of this one block rather than a second copy of the stylesheet. The
+   active theme is `data-theme` on <html>, set before first paint by a snippet
+   in index.html and owned from then on by the theme store. */
 :root {
   /* surfaces */
   --bg: #ffffff;
@@ -11,15 +15,22 @@
   --panel: #ffffff; /* the rounded main panel */
   --panel-line: #dfe2e7;
   --rail: #f7f8fa;
+  --surface: #ffffff; /* cards, menus, inputs — lifted off the panel */
 
   /* ink */
   --ink: #1a1f36;
+  --ink-body: #2b3348; /* long-form prose */
+  --ink-mute: #45506a; /* labels, quiet nav */
+  --ink-soft: #56607a; /* glyphs, monospace payloads */
   --dim: #687385;
   --faint: #9aa3b0;
+  --on-fill: #ffffff; /* text/icons on a solid accent or status fill */
 
   /* lines */
   --line: #e8eaed;
   --line-soft: #eff1f4;
+  --line-strong: #cbd2dc; /* checkbox + card-hover edges */
+  --input-line: #dfe3e8;
 
   /* accent */
   --accent: #3358d4;
@@ -38,21 +49,106 @@
   /* fills */
   --raised: #fcfcfd;
   --tile: #f1f2f5;
+  --hover: #dfe2e8; /* hover on the shell — darkens in light, lifts in dark */
+  --hover-soft: #eceef2; /* the same move, one step quieter */
+  --hover-lift: rgba(255, 255, 255, 0.6); /* translucent lift on a tinted card */
+  --track: #cfd4dc; /* switch, off */
+  --knob: #ffffff;
+  --swatch-line: rgba(18, 22, 34, 0.14);
+
+  /* depth */
+  --overlay: rgba(18, 22, 34, 0.32);
+  --shadow-panel:
+    0 1px 2px rgba(22, 28, 45, 0.05), 0 12px 32px -22px rgba(22, 28, 45, 0.3);
+  --shadow-card:
+    0 1px 2px rgba(22, 28, 45, 0.04), 0 16px 36px -30px rgba(22, 28, 45, 0.3);
+  --shadow-nav: 0 1px 2px rgba(20, 30, 60, 0.08), inset 0 0 0 1px #e2e5ea;
+  --shadow-hover: 0 1px 2px rgba(20, 30, 60, 0.06);
+  --shadow-menu: 0 12px 30px -18px rgba(22, 28, 45, 0.4);
+  --shadow-modal:
+    0 1px 2px rgba(22, 28, 45, 0.06), 0 24px 60px -28px rgba(22, 28, 45, 0.45);
+  --shadow-drawer: 8px 0 32px -20px rgba(22, 28, 45, 0.4);
+  --shadow-knob: 0 1px 2px rgba(18, 22, 34, 0.25);
+  --shadow-inset: inset 0 1px 1px rgba(22, 28, 45, 0.06);
 
   --radius: 12px;
 
-  /* Granola brand (sampled from their nav icon) */
+  /* Granola brand (sampled from their nav icon) — fixed in both themes */
   --granola-green: #b2c248;
   --granola-green-dark: #97a53a;
   --granola-ink: #1e1e1e;
+}
+
+/* Dark: the same design, re-grounded. Surfaces step *up* in lightness as they
+   come forward (shell → panel → surface), which is the inverse of light mode,
+   where they step up in whiteness. Accents lighten so they read against the
+   ground, and --on-fill flips to near-black to stay legible on them. */
+:root[data-theme="dark"] {
+  --bg: #14161b;
+  --shell: #0e1014;
+  --panel: #17191f;
+  --panel-line: #2a2e37;
+  --rail: #1d2027;
+  --surface: #1e212a;
+
+  --ink: #e8eaf0;
+  --ink-body: #ced3de;
+  --ink-mute: #aab2c1;
+  --ink-soft: #99a1b1;
+  --dim: #a0a8b8;
+  --faint: #737c8d;
+  --on-fill: #101219;
+
+  --line: #262a33;
+  --line-soft: #1f232a;
+  --line-strong: #3a404c;
+  --input-line: #2e323c;
+
+  --accent: #6d8cff;
+  --accent-soft: #1c2340;
+
+  --green: #4cb98a;
+  --green-soft: #14261e;
+  --amber: #d9a03f;
+  --amber-soft: #2a2113;
+  --violet: #9b83ee;
+  --violet-soft: #221d3a;
+  --red: #e07a66;
+  --red-soft: #2e1a17;
+
+  --raised: #1b1e25;
+  --tile: #232730;
+  --hover: #272b34;
+  --hover-soft: #2b2f39;
+  --hover-lift: rgba(255, 255, 255, 0.045);
+  --track: #3a404c;
+  --knob: #d5dae5;
+  --swatch-line: rgba(255, 255, 255, 0.16);
+
+  --overlay: rgba(6, 8, 12, 0.62);
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px -20px rgba(0, 0, 0, 0.85);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 36px -28px rgba(0, 0, 0, 0.8);
+  --shadow-nav: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 0 0 1px #313641;
+  --shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-menu: 0 12px 30px -14px rgba(0, 0, 0, 0.9);
+  --shadow-modal: 0 1px 2px rgba(0, 0, 0, 0.5), 0 24px 60px -24px rgba(0, 0, 0, 0.95);
+  --shadow-drawer: 8px 0 32px -16px rgba(0, 0, 0, 0.9);
+  --shadow-knob: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow-inset: inset 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* Tells the browser which way to render scrollbars, date pickers and other
+   native chrome. */
 html {
   color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
@@ -122,9 +218,7 @@ main {
   border: 1px solid var(--panel-line);
   border-radius: 16px;
   overflow: hidden; /* clip topbar rule to rounded corners */
-  box-shadow:
-    0 1px 2px rgba(22, 28, 45, 0.05),
-    0 12px 32px -22px rgba(22, 28, 45, 0.3);
+  box-shadow: var(--shadow-panel);
 }
 
 .content {
@@ -174,7 +268,7 @@ main {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #45506a;
+  color: var(--ink-mute);
   padding: 0 9px;
   opacity: 0.7;
 }
@@ -193,7 +287,7 @@ nav {
   border-radius: 8px;
   font-size: 13.5px;
   font-weight: 450;
-  color: #45506a;
+  color: var(--ink-mute);
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -260,7 +354,7 @@ nav {
 }
 
 .connact:hover {
-  background: #dfe2e8;
+  background: var(--hover);
   color: var(--ink);
 }
 
@@ -274,16 +368,14 @@ nav {
 }
 
 .nav:hover {
-  background: #dfe2e8;
+  background: var(--hover);
 }
 
 .nav.active {
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
   font-weight: 550;
-  box-shadow:
-    0 1px 2px rgba(20, 30, 60, 0.08),
-    inset 0 0 0 1px #e2e5ea;
+  box-shadow: var(--shadow-nav);
 }
 
 .nav.active svg {
@@ -334,6 +426,41 @@ nav {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Light/dark switch, parked at the end of the "me" row. */
+.themetoggle {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.themetoggle:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* The icon swaps on press, so give it a beat of movement to sell the switch. */
+.themetoggle svg {
+  animation: themeflip 0.22s ease-out;
+}
+
+@keyframes themeflip {
+  from {
+    opacity: 0;
+    transform: rotate(-35deg) scale(0.75);
+  }
 }
 
 /* ============================================================
@@ -430,7 +557,7 @@ nav {
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 1px 5px;
-  background: #fff;
+  background: var(--surface);
   flex-shrink: 0;
 }
 
@@ -441,7 +568,7 @@ nav {
   height: 32px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   color: var(--dim);
   cursor: pointer;
   flex-shrink: 0;
@@ -508,7 +635,7 @@ nav {
   border-radius: 8px;
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-fill);
   font-size: 13px;
   font-weight: 550;
   cursor: pointer;
@@ -533,7 +660,7 @@ nav {
 }
 
 .btn.ghost {
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
   border-color: var(--line);
 }
@@ -550,7 +677,7 @@ nav {
 }
 
 .btn.danger:hover {
-  background: color-mix(in srgb, var(--red) 14%, #fff);
+  background: color-mix(in srgb, var(--red) 14%, var(--surface));
   filter: none;
 }
 
@@ -640,7 +767,7 @@ nav {
 }
 .t-dim {
   background: var(--tile);
-  color: #56607a;
+  color: var(--ink-soft);
 }
 
 /* ============================================================
@@ -651,7 +778,7 @@ nav {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
 }
 
 .sect + .sect {
@@ -717,10 +844,8 @@ nav {
 .homecard {
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #fff, var(--raised));
-  box-shadow:
-    0 1px 2px rgba(22, 28, 45, 0.04),
-    0 16px 36px -30px rgba(22, 28, 45, 0.3);
+  background: linear-gradient(180deg, var(--surface), var(--raised));
+  box-shadow: var(--shadow-card);
 }
 
 @media (max-width: 900px) {
@@ -750,7 +875,7 @@ nav {
 }
 
 .aicard .airow:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--hover-lift);
 }
 
 .aicardempty {
@@ -826,7 +951,7 @@ nav {
   border-radius: 999px;
   /* recessed track with a gentle inner shadow */
   background: var(--tile);
-  box-shadow: inset 0 1px 1px rgba(22, 28, 45, 0.06);
+  box-shadow: var(--shadow-inset);
   overflow: hidden;
 }
 
@@ -839,7 +964,9 @@ nav {
   transition: width 0.3s ease;
 }
 
-/* Each fill is a soft left-to-right gradient from a lighter tint into the tone. */
+/* Each fill is a soft left-to-right gradient from a lighter tint into the tone.
+   The white in the mix is lightening the tone itself, not matching a surface,
+   so it reads the same way on a dark track as on a light one. */
 .funfill.accent {
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent));
 }
@@ -856,7 +983,7 @@ nav {
   background: linear-gradient(90deg, color-mix(in srgb, var(--red) 80%, #fff), var(--red));
 }
 .funfill.dim {
-  background: #aeb6c2;
+  background: var(--faint);
 }
 
 .funcount {
@@ -940,7 +1067,7 @@ table.data tbody tr:hover {
   height: 32px;
   border-radius: 9px;
   background: var(--tile);
-  color: #56607a;
+  color: var(--ink-soft);
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
@@ -1137,7 +1264,7 @@ table.data tbody tr:hover {
 .field .l {
   font-size: 12px;
   font-weight: 550;
-  color: #45506a;
+  color: var(--ink-mute);
 }
 
 .input,
@@ -1145,9 +1272,9 @@ table.data tbody tr:hover {
 .select {
   height: 36px;
   padding: 0 11px;
-  border: 1px solid #dfe3e8;
+  border: 1px solid var(--input-line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   font-size: 13px;
   width: 100%;
   outline: 0;
@@ -1202,9 +1329,9 @@ table.data tbody tr:hover {
   width: 100%;
   height: 36px;
   padding: 0 9px 0 11px;
-  border: 1px solid #dfe3e8;
+  border: 1px solid var(--input-line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   font-size: 13px;
   color: var(--ink);
   cursor: pointer;
@@ -1245,10 +1372,10 @@ table.data tbody tr:hover {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--panel-line);
   border-radius: 10px;
-  box-shadow: 0 12px 30px -18px rgba(22, 28, 45, 0.4);
+  box-shadow: var(--shadow-menu);
   overflow: hidden;
   animation: pop 0.12s ease;
 }
@@ -1360,7 +1487,7 @@ table.data tbody tr:hover {
   padding: 5px 6px 5px 12px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: #fff;
+  background: var(--surface);
   transition:
     border-color 0.12s ease,
     box-shadow 0.12s ease;
@@ -1410,7 +1537,7 @@ table.data tbody tr:hover {
 
 .ppick-btn:hover,
 .datepill-btn:hover {
-  background: #eceef2;
+  background: var(--hover-soft);
   color: var(--ink);
 }
 
@@ -1430,10 +1557,10 @@ table.data tbody tr:hover {
   right: 0;
   min-width: 108px;
   padding: 4px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--panel-line);
   border-radius: 9px;
-  box-shadow: 0 12px 30px -18px rgba(22, 28, 45, 0.4);
+  box-shadow: var(--shadow-menu);
   animation: pop 0.12s ease;
 }
 
@@ -1479,7 +1606,7 @@ table.data tbody tr:hover {
 }
 
 .datepill.set .datepill-btn {
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
 }
 
@@ -1515,7 +1642,7 @@ table.data tbody tr:hover {
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
 }
 
 .airow {
@@ -1540,10 +1667,10 @@ table.data tbody tr:hover {
   place-items: center;
   width: 18px;
   height: 18px;
-  border: 1.5px solid #cbd2dc;
+  border: 1.5px solid var(--line-strong);
   border-radius: 5px;
-  background: #fff;
-  color: #fff;
+  background: var(--surface);
+  color: var(--on-fill);
   cursor: pointer;
   flex-shrink: 0;
   transition:
@@ -1716,7 +1843,7 @@ table.data tbody tr:hover {
   font-size: 11px;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 1px 7px;
@@ -1739,7 +1866,7 @@ table.data tbody tr:hover {
 }
 
 .card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 11px 12px;
@@ -1750,8 +1877,8 @@ table.data tbody tr:hover {
 }
 
 .card:hover {
-  border-color: #d3d8e0;
-  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.06);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-hover);
 }
 
 .card:active {
@@ -1804,7 +1931,7 @@ table.data tbody tr:hover {
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(18, 22, 34, 0.32);
+  background: var(--overlay);
   backdrop-filter: blur(1.5px);
   z-index: 40;
   display: flex;
@@ -1903,8 +2030,10 @@ table.data tbody tr:hover {
   inset: 0;
   display: grid;
   place-items: center;
+  /* A scrim over an arbitrary uploaded logo, so it stays dark-on-white in
+     both themes rather than following the surface tokens. */
   background: rgba(18, 22, 34, 0.5);
-  color: #fff;
+  color: #ffffff;
   opacity: 0;
   transition: opacity 0.12s ease;
 }
@@ -1955,7 +2084,7 @@ table.data tbody tr:hover {
 }
 
 .lintitle:focus {
-  background: #fff;
+  background: var(--surface);
   box-shadow:
     inset 0 0 0 1px var(--line),
     0 0 0 4px var(--accent-soft);
@@ -1990,7 +2119,7 @@ table.data tbody tr:hover {
 }
 
 .lindesc:focus {
-  background: #fff;
+  background: var(--surface);
   box-shadow:
     inset 0 0 0 1px var(--line),
     0 0 0 4px var(--accent-soft);
@@ -2059,7 +2188,7 @@ table.data tbody tr:hover {
 }
 
 .propin:focus {
-  background: #fff;
+  background: var(--surface);
   box-shadow:
     inset 0 0 0 1px var(--line),
     0 0 0 3px var(--accent-soft);
@@ -2078,7 +2207,7 @@ table.data tbody tr:hover {
 }
 
 .ss-control.ghost.open {
-  background: #fff;
+  background: var(--surface);
 }
 
 .prop-del {
@@ -2190,7 +2319,7 @@ table.data tbody tr:hover {
   height: 8px;
   border-radius: 999px;
   background: var(--tile);
-  border: 2px solid #fff;
+  border: 2px solid var(--panel);
   box-shadow: 0 0 0 1px var(--line);
   flex-shrink: 0;
 }
@@ -2231,7 +2360,7 @@ table.data tbody tr:hover {
 .cmdoverlay {
   position: fixed;
   inset: 0;
-  background: rgba(18, 22, 34, 0.34);
+  background: var(--overlay);
   backdrop-filter: blur(2px);
   z-index: 60;
   display: flex;
@@ -2244,12 +2373,10 @@ table.data tbody tr:hover {
 .cmd {
   width: 620px;
   max-width: 100%;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--panel-line);
   border-radius: 14px;
-  box-shadow:
-    0 1px 2px rgba(22, 28, 45, 0.06),
-    0 24px 60px -28px rgba(22, 28, 45, 0.45);
+  box-shadow: var(--shadow-modal);
   overflow: hidden;
   animation: pop 0.14s ease;
 }
@@ -2419,12 +2546,10 @@ table.data tbody tr:hover {
 .granola {
   width: 760px;
   max-width: 94vw;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--panel-line);
   border-radius: 14px;
-  box-shadow:
-    0 1px 2px rgba(22, 28, 45, 0.06),
-    0 24px 60px -28px rgba(22, 28, 45, 0.45);
+  box-shadow: var(--shadow-modal);
   overflow: hidden;
   animation: pop 0.14s ease;
   display: flex;
@@ -2596,7 +2721,7 @@ table.data tbody tr:hover {
   padding: 4px 6px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .cms-control:focus-within {
@@ -2652,10 +2777,10 @@ table.data tbody tr:hover {
   max-height: 220px;
   overflow-y: auto;
   padding: 4px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--panel-line);
   border-radius: 9px;
-  box-shadow: 0 10px 28px -18px rgba(22, 28, 45, 0.4);
+  box-shadow: var(--shadow-menu);
 }
 
 .cms-opt {
@@ -2721,12 +2846,10 @@ table.data tbody tr:hover {
   width: 648px;
   max-width: 94vw;
   max-height: 86vh;
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
   border: 1px solid var(--panel-line);
-  box-shadow:
-    0 1px 2px rgba(22, 28, 45, 0.06),
-    0 32px 64px -30px rgba(22, 28, 45, 0.5);
+  box-shadow: var(--shadow-modal);
   display: flex;
   flex-direction: column;
   animation: pop 0.14s ease;
@@ -2931,14 +3054,14 @@ table.data tbody tr:hover {
 .md h5,
 .md h6 {
   font-size: 13.5px;
-  color: #45506a;
+  color: var(--ink-mute);
 }
 
 .md p {
   margin: 0 0 12px;
   font-size: 13.5px;
   line-height: 1.7;
-  color: #2b3348;
+  color: var(--ink-body);
 }
 
 .md > *:last-child {
@@ -2977,7 +3100,7 @@ table.data tbody tr:hover {
   line-height: 1.65;
   margin: 4px 0;
   padding-left: 3px;
-  color: #2b3348;
+  color: var(--ink-body);
 }
 
 .md li::marker {
@@ -3042,11 +3165,11 @@ table.data tbody tr:hover {
 
 .sdk-error .card {
   max-width: 420px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--panel-line);
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 12px 32px -22px rgba(22, 28, 45, 0.3);
+  box-shadow: var(--shadow-card);
 }
 
 .sdk-error h1 {
@@ -3282,7 +3405,7 @@ table.data tbody tr:hover {
   height: 20px;
   border-radius: 6px;
   background: var(--tile);
-  color: #56607a;
+  color: var(--ink-soft);
   flex-shrink: 0;
 }
 
@@ -3351,7 +3474,7 @@ table.data tbody tr:hover {
   background: var(--tile);
   font-size: 11px;
   line-height: 1.5;
-  color: #46506a;
+  color: var(--ink-mute);
   max-height: 260px;
   overflow: auto;
   white-space: pre-wrap;
@@ -3368,7 +3491,7 @@ table.data tbody tr:hover {
 
 .askchip {
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
   border-radius: 999px;
   padding: 3px 10px;
   font-size: 11.5px;
@@ -3441,7 +3564,7 @@ table.data tbody tr:hover {
   width: 26px;
   height: 26px;
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   color: var(--amber);
   flex-shrink: 0;
 }
@@ -3485,9 +3608,9 @@ table.data tbody tr:hover {
 .askapproval-fields {
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--surface) 90%, transparent);
   border-radius: 9px;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -3539,7 +3662,7 @@ table.data tbody tr:hover {
    the secondary action a surface to sit on and make the confirming action
    solid — on a decision this consequential the primary has to be unmissable. */
 .askapproval-acts .btn.ghost {
-  background: #fff;
+  background: var(--surface);
   border-color: var(--line);
 }
 
@@ -3549,7 +3672,7 @@ table.data tbody tr:hover {
 
 .askapproval .btn.danger {
   background: var(--red);
-  color: #fff;
+  color: var(--on-fill);
   border-color: var(--red);
 }
 
@@ -3562,7 +3685,7 @@ table.data tbody tr:hover {
 .askviz {
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -3678,7 +3801,7 @@ table.data tbody tr:hover {
 
 .asksuggest button {
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
   border-radius: 999px;
   padding: 7px 14px;
   font-size: 12.5px;
@@ -3722,7 +3845,7 @@ table.data tbody tr:hover {
 
 .askcomposer:focus-within {
   border-color: var(--accent);
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
@@ -3752,7 +3875,7 @@ table.data tbody tr:hover {
   border: 0;
   border-radius: 9px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-fill);
   cursor: pointer;
   transition:
     opacity 0.12s ease,
@@ -4173,7 +4296,7 @@ table.data tbody tr:hover {
   flex-shrink: 0;
   border: 0;
   border-radius: 999px;
-  background: #cfd4dc;
+  background: var(--track);
   cursor: pointer;
   padding: 0;
   transition: background 0.14s ease;
@@ -4195,8 +4318,8 @@ table.data tbody tr:hover {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(18, 22, 34, 0.25);
+  background: var(--knob);
+  box-shadow: var(--shadow-knob);
   transition: transform 0.14s ease;
 }
 
@@ -4446,7 +4569,7 @@ table.data tbody tr:hover {
   width: 14px;
   height: 14px;
   border-radius: 4px;
-  border: 1px solid rgba(18, 22, 34, 0.14);
+  border: 1px solid var(--swatch-line);
   flex-shrink: 0;
 }
 
@@ -4640,12 +4763,10 @@ table.data tbody tr:hover {
 
 .modal {
   max-width: 94vw;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--panel-line);
   border-radius: 14px;
-  box-shadow:
-    0 1px 2px rgba(22, 28, 45, 0.06),
-    0 24px 60px -28px rgba(22, 28, 45, 0.45);
+  box-shadow: var(--shadow-modal);
   overflow: hidden;
   animation: pop 0.14s ease;
   display: flex;
@@ -5006,7 +5127,7 @@ table.data tbody tr:hover {
 
 .nav .ct.unread {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-fill);
   font-size: 10.5px;
   font-weight: 600;
   line-height: 16px;
@@ -5046,7 +5167,7 @@ table.data tbody tr:hover {
     z-index: 50;
     transform: translateX(-100%);
     transition: transform 0.2s ease;
-    box-shadow: 8px 0 32px -20px rgba(22, 28, 45, 0.4);
+    box-shadow: var(--shadow-drawer);
   }
 
   .app.navopen aside {
@@ -5056,7 +5177,7 @@ table.data tbody tr:hover {
   .scrim {
     position: fixed;
     inset: 0;
-    background: rgba(18, 22, 34, 0.3);
+    background: var(--overlay);
     z-index: 45;
   }
 

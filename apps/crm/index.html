@@ -10,6 +10,23 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
+    <script>
+      // Themes the document before the first paint, so a dark-mode reload never
+      // flashes white. The theme store re-reads the same two inputs on boot.
+      (function () {
+        try {
+          var pinned = localStorage.getItem("crm.theme");
+          document.documentElement.dataset.theme =
+            pinned === "light" || pinned === "dark"
+              ? pinned
+              : matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+        } catch (e) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
