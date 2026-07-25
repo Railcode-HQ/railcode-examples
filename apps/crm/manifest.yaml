@@ -1,0 +1,11 @@
+run_as: app
+llm: true
+
+# The Automations feature hands sandbox work to managed agents: the app uploads
+# the inputs and mints the ids; crm-style-measurer reads an uploaded template and
+# returns its measured design system; crm-artifact-writer renders the .docx/.pptx
+# and writes the result back into this app's shared KV and file store.
+agents: [crm-artifact-writer, crm-style-measurer]
+
+personal_connectors:
+  - granola:*

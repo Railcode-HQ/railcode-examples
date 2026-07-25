@@ -1,0 +1,5 @@
+{
+  "app": "kanban",
+  "build": "pnpm run build",
+  "dist": "dist"
+}

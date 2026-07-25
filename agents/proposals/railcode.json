@@ -1,0 +1,5 @@
+{
+  "app": "proposals",
+  "build": "npm run build",
+  "dist": "dist"
+}

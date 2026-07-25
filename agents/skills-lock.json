@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "create-railcode-agent": {
+      "source": "Railcode-HQ/railcode-skills",
+      "sourceType": "github",
+      "skillPath": "create-railcode-agent/SKILL.md",
+      "computedHash": "8c83a969d9e6fab4362c3107e29b8cdd16f0c8f7e58c2621a7f45dac923a516f"
+    },
+    "create-railcode-app": {
+      "source": "Railcode-HQ/railcode-skills",
+      "sourceType": "github",
+      "skillPath": "create-railcode-app/SKILL.md",
+      "computedHash": "035bddab90d78e7be9a1065e775ffafff160e3476b52d1baefa90bebe284d91c"
+    },
+    "manage-railcode-org": {
+      "source": "Railcode-HQ/railcode-skills",
+      "sourceType": "github",
+      "skillPath": "manage-railcode-org/SKILL.md",
+      "computedHash": "22309a9a702b9ec08bf7dfb3644eee16ea06714155448b7ab9ba41e0b01ae741"
+    }
+  }
+}

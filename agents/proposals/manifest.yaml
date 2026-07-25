@@ -1,0 +1,14 @@
+run_as: app
+agents: [proposal-writer]
+
+# The app imports meetings by calling Granola directly (no agent, no LLM tokens).
+#
+# This grants the whole toolkit rather than just list_meetings, which is broader
+# than we'd like — but the narrow form is currently undeclarable: `manifest
+# validate` rejects the lowercase tool slug ("granola:list_meetings"), while the
+# runtime matches on exactly that lowercase slug, so an uppercase entry
+# validates and then fails at call time with "was not in the manifest".
+# Granola's tools are all read-only, so the practical scope is reading meeting
+# notes — which this app needs regardless. Revisit if per-tool grants get fixed.
+personal_connectors:
+  - granola:*

@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# QA/browse tooling artifacts
+.playwright-mcp/
+.gstack/

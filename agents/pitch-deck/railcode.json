@@ -1,0 +1,5 @@
+{
+  "app": "pitch-deck",
+  "build": "npm run build",
+  "dist": "dist"
+}

@@ -1,0 +1,49 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+# Unanchored so these match in every example app, not just at the repo root —
+# a leading slash here is what let apps/*/node_modules get committed.
+node_modules/
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+# Each app declares its own build + dist in railcode.json; the CLI builds and
+# uploads on deploy, so built output never needs to be committed.
+build/
+dist/
+dist-test/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+
+# coding agents
+.agents/
+.claude/
+.playwright-mcp/
+.gstack/

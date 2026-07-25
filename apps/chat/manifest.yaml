@@ -1,0 +1,26 @@
+# App authority, ratified at deploy against the deployer's own grants.
+#
+# `run_as: app` because the chat needs authority its individual users may not
+# hold: the LLM gateway, ad-hoc SQL, and the PostHog service connector.
+run_as: app
+
+# The agent loop: llm.generate() picks tools, llm.stream() writes the answer.
+llm: true
+
+# Direct SQL is deliberately scarce authority. It is declared here because this
+# template's whole point is text-to-SQL — the model writes the query. Connections
+# are read-only server-side, and lib/sql.ts additionally rejects anything that
+# isn't a single SELECT/WITH before it leaves the browser.
+adhoc_sql:
+  - railcode-demo
+
+# Only the endpoints the PostHog tools actually call. Anything not listed is a
+# 403 at the proxy, so this doubles as the tool surface's allowlist.
+connectors:
+  posthog:
+    - "POST /api/projects/@current/query/"
+    - "GET /api/projects/@current/insights/"
+    - "GET /api/projects/@current/feature_flags/"
+    - "GET /api/projects/@current/events/"
+    - "GET /api/projects/@current/persons/"
+    - "GET /api/organizations/@current/"
