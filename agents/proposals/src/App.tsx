@@ -1,22 +1,30 @@
 import { useEffect } from "react";
 
-import { CommandBar } from "@/components/CommandBar";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { Materials } from "@/views/Materials";
-import { Meetings } from "@/views/Meetings";
 import { Proposal } from "@/views/Proposal";
-import { Settings } from "@/views/Settings";
-import { Setup } from "@/views/Setup";
 import { useProposalStore } from "@/store/proposal-store";
 
+/**
+ * The agent runs on a 30-minute cron and the browser is never told about it, so
+ * a tab someone leaves open would otherwise never show a new proposal. Poll at
+ * half the agent's period — often enough that a draft appears without a manual
+ * refresh, rare enough to be free.
+ */
+const POLL_MS = 15 * 60 * 1000;
+
 export function App() {
-  const { view, loaded, error, notice, navOpen, bootstrap, setNavOpen, clearError, clearNotice } =
+  const { loaded, error, notice, navOpen, bootstrap, refresh, setNavOpen, clearError, clearNotice } =
     useProposalStore();
 
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    const id = setInterval(() => void refresh(), POLL_MS);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   useEffect(() => {
     if (!notice) return;
@@ -52,15 +60,9 @@ export function App() {
 
           {notice ? <div className="banner ok">{notice}</div> : null}
 
-          {view === "setup" ? <Setup /> : null}
-          {view === "meetings" ? <Meetings /> : null}
-          {view === "proposal" ? <Proposal /> : null}
-          {view === "materials" ? <Materials /> : null}
-          {view === "settings" ? <Settings /> : null}
+          <Proposal />
         </div>
       </main>
-
-      <CommandBar />
     </div>
   );
 }

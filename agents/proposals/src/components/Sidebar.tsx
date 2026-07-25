@@ -1,14 +1,7 @@
-import { CalendarClock, FileText, Files, Settings2, Wand2 } from "lucide-react";
+import { FileText } from "lucide-react";
 
-import { View, useProposalStore } from "@/store/proposal-store";
-
-const NAV: { id: View; label: string; icon: typeof Files }[] = [
-  { id: "meetings", label: "Meetings", icon: CalendarClock },
-  { id: "proposal", label: "Proposals", icon: FileText },
-  { id: "materials", label: "Materials", icon: Files },
-  { id: "setup", label: "Setup guide", icon: Wand2 },
-  { id: "settings", label: "Settings", icon: Settings2 },
-];
+import { formatDay } from "@/lib/proposals";
+import { useProposalStore } from "@/store/proposal-store";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -17,19 +10,12 @@ function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
+/**
+ * The proposal list IS the navigation — there is nowhere else to go. The app
+ * has one screen, because the agent produces exactly one kind of thing.
+ */
 export function Sidebar() {
-  const { view, setView, identity, materials, proposals, meetings } = useProposalStore();
-
-  const undrafted = meetings.filter((m) => !m.drafted).length;
-
-  const counts: Record<View, number | undefined> = {
-    setup: undefined,
-    meetings: undrafted || undefined,
-    proposal: proposals.length || undefined,
-    materials: materials.length || undefined,
-    settings: undefined,
-  };
-
+  const { proposals, selectedId, select, identity } = useProposalStore();
   const user = identity?.user.name ?? "you";
 
   return (
@@ -41,20 +27,28 @@ export function Sidebar() {
         <b>Proposals</b>
       </div>
 
-      <div className="navgroup">
-        <div className="navlabel">Workspace</div>
+      <div className="navgroup list">
+        <div className="navlabel">
+          Drafted for you{proposals.length ? ` · ${proposals.length}` : ""}
+        </div>
         <nav>
-          {NAV.map(({ id, label, icon: Icon }) => (
+          {proposals.map((p) => (
             <button
-              key={id}
-              className={`nav${view === id ? " active" : ""}`}
-              onClick={() => setView(id)}
+              key={p.id}
+              className={`nav${p.id === selectedId ? " active" : ""}`}
+              onClick={() => select(p.id)}
             >
-              <Icon />
-              <span className="label">{label}</span>
-              {counts[id] !== undefined ? <span className="ct tab">{counts[id]}</span> : null}
+              <span className="label">
+                {p.client || p.title || "Untitled"}
+                <span className="sub">
+                  {formatDay(p.createdAt)}
+                  {p.edited ? " · edited" : ""}
+                  {p.placeholders?.length ? ` · ${p.placeholders.length} to fill` : ""}
+                </span>
+              </span>
             </button>
           ))}
+          {proposals.length === 0 ? <div className="navempty">Nothing drafted yet</div> : null}
         </nav>
       </div>
 

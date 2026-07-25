@@ -1,10 +1,5 @@
-export type MaterialFile = {
-  name: string; // display name (prefix stripped)
-  fileName: string; // full storage name, e.g. "materials/rate-card.pdf"
-  contentType: string;
-  size: number;
-  updatedAt: string;
-};
+// Everything in this file describes data the AGENT wrote. The app creates no
+// records of its own except the `edited` fields below — it is a reader.
 
 export type ProposalRecord = {
   id: string;
@@ -15,100 +10,45 @@ export type ProposalRecord = {
   meetingTitle: string;
   meetingDate: string;
   createdAt: string;
-  source: "manual" | "cron";
-  context: string;
   summary: string;
-  materialsUsed?: string[];
+  /** Section names in order — the agent reads these back to keep house structure. */
+  sections?: string[];
   /** Bracketed gaps the agent deliberately left for a human to fill in. */
   placeholders?: string[];
-  /** Set by this app once someone saves an edit from the SuperDoc editor. */
+  /** What in the meeting made this a proposal. The agent's reasoning, shown as-is. */
+  signals?: string[];
+  /** Set by this app once someone saves an edit from the editor. */
   edited?: boolean;
   editedAt?: string;
   editedBy?: string;
 };
 
-export type MeetingRecord = {
-  id: string;
-  title: string;
-  /** ISO 8601, or "" when the source date could not be parsed. */
-  date: string;
-  /** Granola's own date string, shown when `date` is unparseable. */
-  dateLabel?: string;
-  attendees?: string[];
-  /** Someone outside your email domain attended — i.e. a client conversation. */
-  external?: boolean;
-  indexedAt: string;
-  drafted: boolean;
-  proposalId?: string | null;
-};
-
-/** The only window Granola's list_meetings accepts — it takes no other filter. */
-export type TimeRange = "this_week" | "last_week" | "last_30_days";
-
-export const TIME_RANGES: { value: TimeRange; label: string }[] = [
-  { value: "this_week", label: "This week" },
-  { value: "last_week", label: "Last week" },
-  { value: "last_30_days", label: "Last 30 days" },
-];
-
-export type Settings = {
-  autoDraft: boolean;
-  timeRange: TimeRange;
-  companyName?: string;
-};
-
 /**
- * Only the dismissal is stored. Which steps are done is derived from live data
- * (are there meetings / materials / proposals?), so the checklist can never
- * disagree with reality — deleting every material re-opens that step.
+ * The agent's own account of its last run, written every run including the quiet
+ * ones. On a schedule this is the only evidence the agent is alive: with no
+ * proposals on screen, "checked 8 minutes ago, nothing new" and "hasn't run
+ * since Tuesday" look identical without it.
  */
-export type Onboarding = {
-  dismissed?: boolean;
-  dismissedAt?: string;
-};
-
-export type CronState = {
+export type ScoutState = {
   lastRunAt?: string;
-  lastIndexedAt?: string;
-  drafted?: string[];
-  skipped?: string[];
+  outcome?: "bootstrap" | "idle" | "drafted" | "error";
+  /** When the agent started watching. Everything before it was marked handled. */
+  bootstrappedAt?: string;
+  scanned?: number;
+  candidates?: number;
+  drafted?: { id: string; title: string }[];
+  skipped?: { title: string; reason: string }[];
+  notReady?: string[];
+  /** Meetings that qualified but weren't drafted this run — one per run. */
+  pending?: number;
+  error?: string | null;
 };
 
-export const DEFAULT_SETTINGS: Settings = {
-  // Off until someone turns it on in Settings: the scheduled run keeps the
-  // meeting list fresh, but writing client-facing documents unattended is an
-  // opt-in, not a default.
-  autoDraft: false,
-  timeRange: "this_week",
-};
+export const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-// Materials and agent-generated proposals share the app's one file store, so
-// each side gets a prefix to stay distinguishable.
-export const MATERIALS_PREFIX = "materials/";
-export const PROPOSALS_PREFIX = "proposals/";
-
-// A sane client-side guard so one huge upload doesn't stall the browser —
-// not a platform-imposed limit.
-export const MAX_MATERIAL_BYTES = 25 * 1024 * 1024;
-
-export function materialStorageName(fileName: string): string {
-  return MATERIALS_PREFIX + fileName.replace(/^\/+/, "");
-}
-
-export function materialDisplayName(storageName: string): string {
-  return storageName.startsWith(MATERIALS_PREFIX)
-    ? storageName.slice(MATERIALS_PREFIX.length)
-    : storageName;
-}
-
-export function formatBytes(value: number | undefined): string {
-  if (!value) return "0 B";
-  if (value < 1024) return value + " B";
-  if (value < 1024 * 1024) return (value / 1024).toFixed(1) + " KB";
-  return (value / (1024 * 1024)).toFixed(1) + " MB";
-}
-
-export function formatDateTime(iso: string): string {
+export function formatDateTime(iso: string | undefined): string {
+  if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat(undefined, {
@@ -120,17 +60,18 @@ export function formatDateTime(iso: string): string {
   }).format(date);
 }
 
-export function formatDay(iso: string): string {
+export function formatDay(iso: string | undefined): string {
+  if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
     month: "short",
     day: "numeric",
   }).format(date);
 }
 
-export function relativeTime(iso: string): string {
+export function relativeTime(iso: string | undefined): string {
+  if (!iso) return "";
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
   const diffMs = Date.now() - then;
@@ -141,6 +82,20 @@ export function relativeTime(iso: string): string {
   if (diffMs < hour) return Math.round(diffMs / minute) + "m ago";
   if (diffMs < day) return Math.round(diffMs / hour) + "h ago";
   return Math.round(diffMs / day) + "d ago";
+}
+
+/**
+ * The agent runs every 30 minutes, so anything much older than that means the
+ * schedule is not firing — worth surfacing rather than showing a stale
+ * "checked 4d ago" as though it were normal.
+ */
+export const STALE_AFTER_MS = 90 * 60 * 1000;
+
+export function isStale(state: ScoutState | null): boolean {
+  if (!state?.lastRunAt) return false;
+  const then = new Date(state.lastRunAt).getTime();
+  if (Number.isNaN(then)) return false;
+  return Date.now() - then > STALE_AFTER_MS;
 }
 
 export function cleanError(error: unknown): string {

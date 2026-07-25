@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
-    "preview": "vite preview",
-    "test:parse": "tsc src/lib/granola.ts --ignoreConfig --outDir dist-test --module esnext --target es2022 --moduleResolution bundler || true && node test/parse-meetings.test.mjs test/fixtures/list-meetings.json"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@superdoc-dev/react": "^1.16.0",

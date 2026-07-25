@@ -1,17 +1,10 @@
-import { Menu, Search } from "lucide-react";
+import { Loader2, Menu, RefreshCw } from "lucide-react";
 
-import { View, useProposalStore } from "@/store/proposal-store";
-
-const TITLES: Record<View, string> = {
-  setup: "Setup",
-  meetings: "Meetings",
-  proposal: "Proposals",
-  materials: "Materials",
-  settings: "Settings",
-};
+import { useProposalStore } from "@/store/proposal-store";
 
 export function Topbar() {
-  const { view, setNavOpen, setCommandOpen } = useProposalStore();
+  const { setNavOpen, refresh, refreshing, proposals, selectedId } = useProposalStore();
+  const selected = proposals.find((p) => p.id === selectedId);
 
   return (
     <div className="topbar">
@@ -25,18 +18,21 @@ export function Topbar() {
 
       <div className="crumb">
         <span>Proposals</span>
-        <span className="sep">/</span>
-        <span className="cur">{TITLES[view]}</span>
+        {selected ? (
+          <>
+            <span className="sep">/</span>
+            <span className="cur">{selected.client || selected.title}</span>
+          </>
+        ) : null}
       </div>
 
       <div className="spacer" />
 
-      {/* A keyboard shortcut nobody knows about may as well not exist. */}
-      <button className="cmd-trigger" onClick={() => setCommandOpen(true)}>
-        <Search size={13} />
-        <span>Search or jump to…</span>
-        <kbd>⌘</kbd>
-        <kbd>K</kbd>
+      {/* Nothing pushes to the browser, and the agent writes on its own cycle,
+          so a tab left open goes stale silently without this. */}
+      <button className="btn ghost sm" disabled={refreshing} onClick={() => void refresh()}>
+        {refreshing ? <Loader2 size={14} className="icon-spin" /> : <RefreshCw size={14} />}
+        {refreshing ? "Checking…" : "Refresh"}
       </button>
     </div>
   );

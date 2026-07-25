@@ -1,14 +1,15 @@
 import { SuperDocEditor, type SuperDocRef } from "@superdoc-dev/react";
 import "@superdoc-dev/react/style.css";
-import { AlertTriangle, Download, FileWarning, Loader2, Save } from "lucide-react";
+import { AlertTriangle, Download, FileWarning, Inbox, Loader2, Quote, Save } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { formatDateTime, ProposalRecord, relativeTime } from "@/lib/proposals";
-import { DOCX_MIME, useProposalStore } from "@/store/proposal-store";
+import { AgentStatus } from "@/components/AgentStatus";
+import { DOCX_MIME, formatDateTime, ProposalRecord, relativeTime } from "@/lib/proposals";
+import { useProposalStore } from "@/store/proposal-store";
 
 /**
- * Railcode serves file bytes with `Content-Disposition: attachment`, and SuperDoc
- * wants a File/Blob anyway — so fetch the .docx ourselves and hand the editor a
+ * Railcode serves file bytes with `Content-Disposition: attachment`, and the
+ * editor wants a File/Blob anyway — so fetch the .docx ourselves and hand it a
  * real File (which also gives it a sensible document name).
  */
 function useDocxFile(fileName: string | undefined) {
@@ -65,29 +66,42 @@ function Provenance({ record }: { record: ProposalRecord }) {
         <span className="k">Drafted</span>
         <span className="v">
           {formatDateTime(record.createdAt)}
-          <span className={`badge ${record.source === "cron" ? "t-violet" : "t-accent"}`}>
-            {record.source === "cron" ? "auto" : "manual"}
-          </span>
           {record.edited ? <span className="badge t-green">edited</span> : null}
         </span>
       </div>
-      {record.materialsUsed?.length ? (
-        <div className="prov-row">
-          <span className="k">Materials used</span>
-          <span className="v">{record.materialsUsed.join(", ")}</span>
-        </div>
-      ) : null}
       {record.summary ? <p className="prov-summary">{record.summary}</p> : null}
     </div>
   );
 }
 
+/**
+ * Nobody asked for this proposal — the agent decided a meeting warranted one.
+ * Showing what it keyed off is how a reader trusts it, or spots that it read
+ * the room wrong.
+ */
+function Signals({ signals }: { signals: string[] }) {
+  return (
+    <div className="sect">
+      <div className="sh">
+        <h2>Why this was drafted</h2>
+      </div>
+      <ul className="signals">
+        {signals.map((s) => (
+          <li key={s}>
+            <Quote size={12} />
+            <span>{s}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function Proposal() {
-  const { proposals, selectedProposalId, selectProposal, saveEditedDocx, saving } =
-    useProposalStore();
+  const { proposals, selectedId, saveEditedDocx, saving, scout } = useProposalStore();
 
   const editorRef = useRef<SuperDocRef>(null);
-  const selected = proposals.find((p) => p.id === selectedProposalId) ?? proposals[0] ?? null;
+  const selected = proposals.find((p) => p.id === selectedId) ?? proposals[0] ?? null;
   const { file, error, loading } = useDocxFile(selected?.fileName);
 
   async function handleSave() {
@@ -97,20 +111,25 @@ export function Proposal() {
     await saveEditedDocx(selected.id, blob as Blob);
   }
 
-  if (!proposals.length) {
+  if (!selected) {
     return (
       <>
         <div className="phead">
           <div>
             <h1>Proposals</h1>
-            <p>Drafts land here — from the cron, or when you draft one from a meeting.</p>
+            <p>
+              The agent reads your Granola meetings every 30 minutes and drafts one when a call
+              clearly ended with &ldquo;send us a proposal&rdquo;.
+            </p>
           </div>
         </div>
-        <div className="empty" style={{ padding: "64px 20px" }}>
-          <FileWarning />
+        <AgentStatus scout={scout} />
+        <div className="empty" style={{ padding: "56px 20px" }}>
+          <Inbox />
           <div className="et">No proposals yet</div>
           <div className="es">
-            Head to Meetings, pick a client call, and draft the first one.
+            Nothing to do — this page fills itself in. Drafts appear here after a client call
+            that asks for one.
           </div>
         </div>
       </>
@@ -121,13 +140,17 @@ export function Proposal() {
     <>
       <div className="phead">
         <div>
-          <h1>{selected?.title || "Proposal"}</h1>
-          <p>{selected?.client ? `For ${selected.client}` : "Edit in place — changes save back to the same document."}</p>
+          <h1>{selected.title || "Proposal"}</h1>
+          <p>
+            {selected.client
+              ? `For ${selected.client} · drafted ${relativeTime(selected.createdAt)}`
+              : "Edit in place — changes save back to the same document."}
+          </p>
         </div>
         <div className="phead-actions">
           <a
             className="btn ghost sm"
-            href={selected ? files.url(selected.fileName) : "#"}
+            href={files.url(selected.fileName)}
             target="_blank"
             rel="noreferrer"
           >
@@ -141,9 +164,11 @@ export function Proposal() {
         </div>
       </div>
 
+      <AgentStatus scout={scout} />
+
       <div className="doc-grid">
         <div>
-          {selected?.placeholders?.length ? (
+          {selected.placeholders?.length ? (
             <div className="callout t-amber">
               <AlertTriangle size={15} />
               <div>
@@ -172,7 +197,7 @@ export function Proposal() {
                 <div className="et">Couldn&apos;t load the document</div>
                 <div className="es">{error}</div>
               </div>
-            ) : file && selected ? (
+            ) : file ? (
               <SuperDocEditor
                 // Remount on document switch so the editor never shows stale content.
                 key={selected.id}
@@ -185,32 +210,21 @@ export function Proposal() {
         </div>
 
         <div className="side-col">
-          {selected ? <Provenance record={selected} /> : null}
-
-          <div className="sect">
-            <div className="sh">
-              <h2>All proposals</h2>
-              <span className="hint">{proposals.length}</span>
+          <Provenance record={selected} />
+          {selected.signals?.length ? <Signals signals={selected.signals} /> : null}
+          {selected.sections?.length ? (
+            <div className="sect">
+              <div className="sh">
+                <h2>Sections</h2>
+                <span className="hint">{selected.sections.length}</span>
+              </div>
+              <ol className="sections">
+                {selected.sections.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ol>
             </div>
-            <div className="version-list">
-              {proposals.map((p) => (
-                <div
-                  key={p.id}
-                  className={`crow click${p.id === selected?.id ? " selected" : ""}`}
-                  onClick={() => selectProposal(p.id)}
-                >
-                  <div className="body">
-                    <div className="cname">{p.title || p.client}</div>
-                    <div className="meta">
-                      {relativeTime(p.createdAt)}
-                      {p.source === "cron" ? " · auto" : ""}
-                      {p.edited ? " · edited" : ""}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </>

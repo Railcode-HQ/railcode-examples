@@ -1,14 +1,9 @@
 run_as: app
-agents: [proposal-writer]
 
-# The app imports meetings by calling Granola directly (no agent, no LLM tokens).
+# Deliberately empty of authority beyond the app's own storage.
 #
-# This grants the whole toolkit rather than just list_meetings, which is broader
-# than we'd like — but the narrow form is currently undeclarable: `manifest
-# validate` rejects the lowercase tool slug ("granola:list_meetings"), while the
-# runtime matches on exactly that lowercase slug, so an uppercase entry
-# validates and then fails at call time with "was not in the manifest".
-# Granola's tools are all read-only, so the practical scope is reading meeting
-# notes — which this app needs regardless. Revisit if per-tool grants get fixed.
-personal_connectors:
-  - granola:*
+# This app reads what the agent wrote and saves edits back — nothing else. It
+# does not invoke the agent (the cron schedule is the only trigger, so there is
+# no `agents:` grant) and it does not call Granola itself (the agent owns that,
+# so there is no `personal_connectors:` grant). Every meeting the app displays
+# reached it as a field on a proposal record.
