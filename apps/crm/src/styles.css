@@ -54,6 +54,8 @@
   --hover-lift: rgba(255, 255, 255, 0.6); /* translucent lift on a tinted card */
   --track: #cfd4dc; /* switch, off */
   --knob: #ffffff;
+  --skel: #eceef2; /* placeholder bar, and the crest the sweep lifts it to */
+  --skel-hi: #f8f9fb;
   --swatch-line: rgba(18, 22, 34, 0.14);
 
   /* depth */
@@ -123,6 +125,8 @@
   --hover-lift: rgba(255, 255, 255, 0.045);
   --track: #3a404c;
   --knob: #d5dae5;
+  --skel: #232730;
+  --skel-hi: #2f343f;
   --swatch-line: rgba(255, 255, 255, 0.16);
 
   --overlay: rgba(6, 8, 12, 0.62);
@@ -4934,6 +4938,132 @@ table.data tbody tr:hover {
 
 .triagerow .badge {
   margin-left: 7px;
+}
+
+/* The waiting state, built to the same measurements as .triagerow above so the
+   list doesn't resettle when the meetings land. */
+.triageskel .skelrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.triageskel .skelrow:last-child {
+  border-bottom: 0;
+}
+
+/* .body is styled by .crow in a real row; these rows aren't .crow, so the
+   placeholder column has to claim the space itself. Flex also stops the two
+   bars' facing margins from collapsing, which would cost the column 4.75px
+   and undo the height matching below. */
+.triageskel .body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* One sweep travelling across the whole bar rather than a flat pulse: it reads
+   as "still working" without the blink that a fade to-and-from does. */
+.skelbar {
+  display: block;
+  border-radius: 5px;
+  background: linear-gradient(
+    100deg,
+    var(--skel) 38%,
+    var(--skel-hi) 50%,
+    var(--skel) 62%
+  );
+  background-size: 280% 100%;
+  animation: skelsweep 1.5s ease-in-out infinite;
+}
+
+/* Rows start a beat apart so the sweep crosses the list, not each row alone. */
+.triageskel .skelrow:nth-child(2) .skelbar {
+  animation-delay: 0.09s;
+}
+
+.triageskel .skelrow:nth-child(3) .skelbar {
+  animation-delay: 0.18s;
+}
+
+.skelglyph {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+
+/* A bar is thinner than the line of text it stands in for, so each one is
+   centred in a box the height of that line. The column then measures what the
+   real one does (38.75px) and the rows don't resize under the arriving text. */
+.skeltitle {
+  height: 10px;
+  max-width: 260px;
+  /* .cname's line box at 13px */
+  margin: calc((19.5px - 10px) / 2) 0;
+}
+
+.skelmeta {
+  height: 8px;
+  max-width: 190px;
+  /* .meta's line box at 11.5px, plus the 2px it sits below the title */
+  margin: calc(2px + (17.25px - 8px) / 2) 0 calc((17.25px - 8px) / 2);
+}
+
+/* Uneven widths so the block reads as a list of titles, not a progress bar. */
+.triageskel .skelrow:nth-child(1) .skeltitle {
+  width: 58%;
+}
+.triageskel .skelrow:nth-child(1) .skelmeta {
+  width: 40%;
+}
+.triageskel .skelrow:nth-child(2) .skeltitle {
+  width: 44%;
+}
+.triageskel .skelrow:nth-child(2) .skelmeta {
+  width: 33%;
+}
+.triageskel .skelrow:nth-child(3) .skeltitle {
+  width: 51%;
+}
+.triageskel .skelrow:nth-child(3) .skelmeta {
+  width: 37%;
+}
+
+/* Matches .btn.sm — 30px tall, at the measured widths of "Create deal" and
+   "Dismiss", so the actions column doesn't change width either. */
+.skelbtn {
+  height: 30px;
+  width: 91px;
+  border-radius: 8px;
+  /* the real buttons hold their width on `white-space: nowrap`; these have no
+     text to hold it for them */
+  flex-shrink: 0;
+}
+
+.skelbtn.ghost {
+  width: 69px;
+}
+
+@keyframes skelsweep {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -30% 0;
+  }
+}
+
+/* A sweep that never stops is the kind of motion this setting is about; the
+   bars still hold the layout, they just sit still. */
+@media (prefers-reduced-motion: reduce) {
+  .skelbar {
+    animation: none;
+    background: var(--skel);
+  }
 }
 
 /* --- the create-deal-from-meeting proposal ------------------ */

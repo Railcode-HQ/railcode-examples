@@ -104,9 +104,7 @@ export function MeetingTriage() {
       ) : null}
 
       {!loaded || (loading && meetings.length === 0) ? (
-        <p className="faint" style={{ fontSize: 12.5 }}>
-          Looking for recent meetings…
-        </p>
+        <TriageSkeleton />
       ) : meetings.length === 0 ? (
         <p className="faint" style={{ fontSize: 12.5 }}>
           Nothing new to triage. Meetings you dismiss don't come back.
@@ -167,6 +165,36 @@ export function MeetingTriage() {
           ) : null}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * The waiting state for the list above: the row drawn as placeholders rather
+ * than a line of text, so the section holds the height it's about to fill and
+ * meetings arrive into geometry the eye has already settled on.
+ *
+ * Three rows regardless of what lands — the count is a rhythm, not a promise,
+ * and the widths vary so it reads as titles rather than a progress bar.
+ */
+function TriageSkeleton() {
+  return (
+    // The bars carry no text, so labelling the group is what a screen reader
+    // has to go on.
+    <div className="rows triageskel" role="status" aria-label="Looking for recent meetings">
+      {[0, 1, 2].map((i) => (
+        <div className="skelrow" key={i}>
+          <span className="skelbar skelglyph" />
+          <div className="body">
+            <span className="skelbar skeltitle" />
+            <span className="skelbar skelmeta" />
+          </div>
+          <div className="triageacts">
+            <span className="skelbar skelbtn" />
+            <span className="skelbar skelbtn ghost" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
