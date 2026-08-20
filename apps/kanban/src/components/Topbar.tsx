@@ -1,7 +1,26 @@
 import { useStore } from "../store";
 import { DONE_PRESETS, type DonePreset } from "../types";
+import type { ThemeSetting } from "../lib/theme";
 import { SelectMenu } from "./SelectMenu";
-import { IconCalendar, IconMenu, IconSearch } from "./icons";
+import {
+  IconCalendar,
+  IconMenu,
+  IconMonitor,
+  IconMoon,
+  IconSearch,
+  IconSun,
+} from "./icons";
+
+const NEXT_THEME: Record<ThemeSetting, ThemeSetting> = {
+  light: "dark",
+  dark: "system",
+  system: "light",
+};
+const THEME_LABEL: Record<ThemeSetting, string> = {
+  light: "Theme: light (click for dark)",
+  dark: "Theme: dark (click for system)",
+  system: "Theme: system (click for light)",
+};
 
 export function Topbar() {
   const view = useStore((s) => s.view);
@@ -10,9 +29,13 @@ export function Topbar() {
   const doneFilter = useStore((s) => s.doneFilter);
   const setDoneFilter = useStore((s) => s.setDoneFilter);
   const setSidebar = useStore((s) => s.setSidebar);
+  const theme = useStore((s) => s.theme);
+  const setTheme = useStore((s) => s.setTheme);
 
   const doneActive = doneFilter.preset !== "all";
   const crumb = view === "board" ? "Board" : "List";
+  const ThemeIcon =
+    theme === "light" ? IconSun : theme === "dark" ? IconMoon : IconMonitor;
 
   return (
     <header className="topbar">
@@ -32,6 +55,15 @@ export function Topbar() {
       </div>
 
       <div className="topbar-right">
+        <button
+          className="icon-btn"
+          aria-label={THEME_LABEL[theme]}
+          title={THEME_LABEL[theme]}
+          onClick={() => setTheme(NEXT_THEME[theme])}
+        >
+          <ThemeIcon />
+        </button>
+
         <label className="search-field">
           <IconSearch />
           <input

@@ -874,6 +874,21 @@ nav {
   flex: 1;
 }
 
+/* On the dashboard the funnel is a real funnel, not a progress bar: each
+   stage's fill is centered rather than pinned to the left, so a healthy
+   pipeline reads as a taper from the widest (top) stage down to the
+   narrowest. The track itself drops its recessed-groove styling since there's
+   no "full width" for a segment to be a percentage of. */
+.pipecard .funtrack {
+  background: transparent;
+  box-shadow: none;
+}
+
+.pipecard .funfill {
+  margin: 0 auto;
+  min-width: 3px;
+}
+
 .aicard .airow {
   padding: 8px 18px;
 }

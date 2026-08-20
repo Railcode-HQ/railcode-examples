@@ -9,6 +9,7 @@ import type {
   Status,
   View,
 } from "./types";
+import { applyTheme, loadTheme, saveTheme, type ThemeSetting } from "./lib/theme";
 
 const COLLECTION = "cards";
 
@@ -150,6 +151,7 @@ interface KanbanState {
 
   // View / filter / sort state
   view: View;
+  theme: ThemeSetting;
   sorts: Sorts;
   search: string;
   tagFilter: string[];
@@ -181,6 +183,7 @@ interface KanbanState {
   topOrder: (status: Status) => number;
 
   setView: (view: View) => void;
+  setTheme: (theme: ThemeSetting) => void;
   setSort: (status: Status, sort: SortKey) => void;
   setSearch: (search: string) => void;
   toggleTagFilter: (tag: string) => void;
@@ -227,6 +230,7 @@ export const useStore = create<KanbanState>((set, get) => {
     error: null,
 
     view: "board",
+    theme: loadTheme(),
     sorts: { ...DEFAULT_SORTS },
     search: "",
     tagFilter: [],
@@ -432,6 +436,11 @@ export const useStore = create<KanbanState>((set, get) => {
     },
 
     setView: (view) => set({ view }),
+    setTheme: (theme) => {
+      saveTheme(theme);
+      applyTheme(theme);
+      set({ theme });
+    },
     setSort: (status, sort) => {
       const sorts = { ...get().sorts, [status]: sort };
       set({ sorts });

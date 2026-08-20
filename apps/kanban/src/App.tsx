@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useStore } from "./store";
+import { applyTheme } from "./lib/theme";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { Board } from "./components/Board";
@@ -18,10 +19,20 @@ export function App() {
   const openPalette = useStore((s) => s.openPalette);
   const paletteOpen = useStore((s) => s.paletteOpen);
   const closePalette = useStore((s) => s.closePalette);
+  const theme = useStore((s) => s.theme);
 
   useEffect(() => {
     init();
   }, [init]);
+
+  // Follow the OS theme live while "system" is selected.
+  useEffect(() => {
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyTheme("system");
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [theme]);
 
   // Global ⌘K / Ctrl-K to toggle the command palette.
   useEffect(() => {

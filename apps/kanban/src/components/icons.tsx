@@ -131,6 +131,34 @@ export const IconChevronsLeft = (p: P) => (
   </svg>
 );
 
+export const IconSun = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="4.2" />
+    <line x1="12" y1="2.5" x2="12" y2="5" />
+    <line x1="12" y1="19" x2="12" y2="21.5" />
+    <line x1="4.6" y1="4.6" x2="6.3" y2="6.3" />
+    <line x1="17.7" y1="17.7" x2="19.4" y2="19.4" />
+    <line x1="2.5" y1="12" x2="5" y2="12" />
+    <line x1="19" y1="12" x2="21.5" y2="12" />
+    <line x1="4.6" y1="19.4" x2="6.3" y2="17.7" />
+    <line x1="17.7" y1="6.3" x2="19.4" y2="4.6" />
+  </svg>
+);
+
+export const IconMoon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z" />
+  </svg>
+);
+
+export const IconMonitor = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="4" width="18" height="13" rx="1.5" />
+    <line x1="8" y1="21" x2="16" y2="21" />
+    <line x1="12" y1="17" x2="12" y2="21" />
+  </svg>
+);
+
 export const IconPaperclip = (p: P) => (
   <svg {...base(p)}>
     <path d="M20.5 12.2 12.2 20.5a5 5 0 0 1-7.1-7.1l8.9-8.9a3.3 3.3 0 0 1 4.7 4.7l-8.9 8.9a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8" />
