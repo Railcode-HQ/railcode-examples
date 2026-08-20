@@ -1,11 +1,33 @@
+# App authority, ratified at deploy against the deployer's own grants.
+#
+# `run_as: app` is mandatory on apps v2: the worker IS the principal, and every
+# platform call it makes is the app's rather than the caller's. Which is exactly
+# why the worker has to do its own authorization — see server/index.ts.
 run_as: app
+
+# The Ask AI loop. Note where it runs: the LOOP is in the browser (its write
+# tools pause for a human approval card, which a worker invocation has no inbound
+# channel for), but every planning turn goes through the worker, so the model
+# gateway is still reached with the app's authority and nothing else.
 llm: true
 
 # The Automations feature hands sandbox work to managed agents: the app uploads
 # the inputs and mints the ids; crm-style-measurer reads an uploaded template and
 # returns its measured design system; crm-artifact-writer renders the .docx/.pptx
-# and writes the result back into this app's shared KV and file store.
+# and writes the result back into this app's store — which, on v2, is the app's
+# ONE flat store, the same one the worker reads.
+#
+# Under v2 `agents:` is a REFUSAL LIST: an agent not named here cannot be started
+# from the worker, whatever grants the deployer holds.
 agents: [crm-artifact-writer, crm-style-measurer]
 
+# The CALLER's own connected accounts, never the org's. Every personal-connector
+# call the worker makes acts as ctx.user, so a cron invocation could not make one
+# at all (409, no caller) — this app has no crons for that reason among others.
+#
+# Only Granola is declared, because only Granola is wired into the app. The
+# Google Calendar source in lib/gcal.ts is present but not yet connected to a
+# view; declaring `google_calendar:*` before then would be authority the app does
+# not use. Add it when the meeting triage starts reading the calendar.
 personal_connectors:
   - granola:*

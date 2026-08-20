@@ -13,9 +13,9 @@
 import { cleanError } from "@/lib/crm";
 import { fetchEventDetail, isGcalConnected, listRecentEvents } from "@/lib/gcal";
 import {
-  fetchGranolaDetail,
+  fetchMeetingDetail as fetchGranolaDetail,
   isGranolaConnected,
-  listGranolaMeetings,
+  listRecentMeetings as listGranolaMeetings,
 } from "@/lib/granola";
 
 export type MeetingSource = "granola" | "google_calendar";
@@ -135,6 +135,13 @@ async function settle(run: () => Promise<MeetingStub[]>): Promise<Settled> {
   }
 }
 
+// Granola's own types carry no `source` — they're shared with call sites that only
+// ever deal with Granola. Tag them on the way in so they fit the merged shape.
+async function listGranolaAsStubs(): Promise<MeetingStub[]> {
+  const stubs = await listGranolaMeetings();
+  return stubs.map((stub) => ({ ...stub, source: "granola" as const }));
+}
+
 /**
  * Recent meetings from every connected source, merged into one list.
  *
@@ -149,7 +156,7 @@ export async function listRecentMeetings(sinceDays: number): Promise<MeetingList
   ]);
 
   const [granola, calendar] = await Promise.all([
-    granolaOn ? settle(listGranolaMeetings) : NOTHING,
+    granolaOn ? settle(listGranolaAsStubs) : NOTHING,
     calendarOn ? settle(() => listRecentEvents(sinceDays)) : NOTHING,
   ]);
 
@@ -180,9 +187,11 @@ export async function fetchMeetingDetail(
 ): Promise<MeetingDetail> {
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      return stub.source === "granola"
-        ? await fetchGranolaDetail(stub.id)
-        : await fetchEventDetail(stub);
+      if (stub.source === "granola") {
+        const detail = await fetchGranolaDetail(stub.id);
+        return { ...detail, source: "granola" as const };
+      }
+      return await fetchEventDetail(stub);
     } catch {
       if (attempt === attempts) break;
       await sleep(1500 * attempt);

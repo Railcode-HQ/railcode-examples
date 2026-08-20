@@ -193,9 +193,8 @@ export function workspaceDigest(): string {
 
 function systemPrompt(identity: Identity | undefined): string {
   const user = identity?.user.name || "the user";
-  const org = identity?.org.name || identity?.org.slug || "this workspace";
-
-  return `You are the assistant inside ${org}'s CRM, working with ${user}. Today is ${todayIsoDate()}.
+  // v2 identity is the verified caller and nothing else — no org record to name.
+  return `You are the assistant inside this CRM, working with ${user}. Today is ${todayIsoDate()}.
 
 You can answer anything about this workspace and you can change it — the same things ${user} could do by hand in the UI.
 

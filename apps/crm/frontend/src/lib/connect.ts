@@ -15,6 +15,14 @@ export async function isToolkitConnected(toolkit: string): Promise<boolean> {
 /** Opens the provider's OAuth URL; the caller owns the popup. */
 export async function connectToolkit(toolkit: string): Promise<string> {
   const { redirect_url } = await personalConnections.connect(toolkit);
+  // A "token" connector authenticates with a pasted key, which an app cannot
+  // securely collect — there is no URL to open, and the user links it from the
+  // Railcode console instead.
+  if (!redirect_url) {
+    throw new Error(
+      "This connector is linked from the Railcode console rather than through the app.",
+    );
+  }
   return redirect_url;
 }
 

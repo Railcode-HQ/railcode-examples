@@ -1,7 +1,6 @@
 {
   "app": "crm",
-  "dev": {
-    "root": ".",
-    "port": 5173
-  }
+  "type": "hono+vite",
+  "dist": "dist/client",
+  "server": "dist/server/index.js"
 }

@@ -4,25 +4,19 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+// Plain Vite for the frontend ONLY. The Hono worker in server/ is built by the
+// Railcode CLI (esbuild) for both `railcode dev` and `railcode deploy`.
 export default defineConfig({
+  root: "frontend",
   base: "/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@": fileURLToPath(new URL("./frontend/src", import.meta.url)),
     },
   },
   build: {
-    outDir: "dist",
+    outDir: "../dist/client",
     emptyOutDir: true,
-  },
-  server: {
-    host: "127.0.0.1",
-    port: 5173,
-    // `railcode dev` proxies the app on :7331 to this Vite server, but the proxy
-    // can't upgrade Vite's HMR WebSocket (handshake returns 200, not 101). Vite
-    // then ping-reloads the page in a loop. Disabling HMR keeps the dev page
-    // stable; refresh manually after edits. No effect on `vite build`/deploy.
-    hmr: false,
   },
 });
