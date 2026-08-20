@@ -1,5 +1,9 @@
 # Railcode: .railcode records which deploy this folder matches — local only.
 node_modules/
+# Templates to copy — a pinned dependency tree is the part you least want to
+# inherit, so no lockfile is committed here.
+package-lock.json
+pnpm-lock.yaml
 dist/
 .dev.vars
 .railcode

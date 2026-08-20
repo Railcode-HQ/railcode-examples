@@ -10,7 +10,7 @@
 // store shared by the whole org — so per-user isolation is this file plus
 // keys.ts, and nothing else. See keys.ts for why the prefix alone is not enough.
 import { Hono } from "hono";
-import { ApiError, ctx, db, files, llmProviders } from "@railcode/sdk";
+import { ApiError, ctx, db, files, llmProviders, toNdjson } from "@railcode/sdk";
 
 import { generateTitle, runAgent } from "./agent";
 import {
@@ -280,119 +280,126 @@ app.post("/api/chat", async (c) => {
   };
   await messages().put(messageKey(user.id, convId, userMessage.seq, userMessage.id), userMessage);
 
-  // The browser can hang up (the user pressed Stop, or navigated). That aborts
-  // the loop, which settles with stopReason "aborted" rather than throwing.
-  const abort = new AbortController();
+  // The browser can hang up (the user pressed Stop, or navigated). Cancelling
+  // the response closes the generator below, which aborts the loop — so an
+  // abandoned turn stops costing tokens rather than running on unwatched.
   const conversation = conv;
 
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const encoder = new TextEncoder();
-      const write = (event: unknown) =>
-        controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
-      let content = "";
-      let saved: Message | null = null;
-      // The stored user turn, so the browser can swap its optimistic copy for
-      // the record that actually exists.
-      write({ type: "user", message: userMessage });
-      try {
-        for await (const event of runAgent({
-          history,
-          question,
-          attachments,
-          prefs: body.prefs,
-          userName: user.name || user.email,
-          signal: abort.signal,
-        })) {
-          write(event);
-          if (event.type === "text") content += event.text;
-          if (event.type === "done") {
-            saved = {
-              id: crypto.randomUUID(),
-              owner: user.id,
-              convId,
-              seq: userMessage.seq + 1,
-              role: "assistant",
-              content: event.content || content,
-              createdAt: new Date().toISOString(),
-              attachments: [],
-              steps: event.steps,
-              error: event.stopReason === "aborted" ? "Stopped." : null,
-              model: event.model,
-              usage: event.usage,
-            };
-          }
-          if (event.type === "error") {
-            saved = {
-              id: crypto.randomUUID(),
-              owner: user.id,
-              convId,
-              seq: userMessage.seq + 1,
-              role: "assistant",
-              content,
-              createdAt: new Date().toISOString(),
-              attachments: [],
-              steps: [],
-              error: event.message,
-              model: null,
-              usage: null,
-            };
-          }
-        }
-      } catch (err) {
-        write({
-          type: "error",
-          error: "worker_error",
-          message: err instanceof Error ? err.message : String(err),
-        });
-      } finally {
-        if (saved) {
-          await messages()
-            .put(messageKey(user.id, convId, saved.seq, saved.id), saved)
-            .catch(() => undefined);
-          await conversations()
-            .put(conversationKey(user.id, convId), {
-              ...conversation,
-              preview: (saved.content || question).slice(0, 120),
-              messageCount: history.length + 2,
-              updatedAt: new Date().toISOString(),
-            })
-            .catch(() => undefined);
-          write({ type: "saved", message: saved });
-        }
-        // Title last: it costs an LLM call, and a failure here must not affect
-        // the conversation that was just saved successfully.
-        if (isNew && question) {
-          try {
-            const title = await generateTitle(question, body.prefs?.model ?? null);
-            if (title) {
-              const current = await conversations().get(conversationKey(user.id, convId));
-              if (current) {
-                await conversations().put(conversationKey(user.id, convId), { ...current, title });
-                write({ type: "title", title });
-              }
-            }
-          } catch {
-            /* keep the truncated-question fallback */
-          }
-        }
-        controller.close();
-      }
-    },
-    cancel() {
-      abort.abort();
-    },
-  });
+  async function* frames(): AsyncGenerator<unknown> {
+    // The stored user turn first, so the browser can swap its optimistic copy
+    // for the record that actually exists.
+    yield { type: "user", message: userMessage };
 
-  return new Response(stream, {
-    headers: {
-      "content-type": "application/x-ndjson",
-      "cache-control": "no-cache",
-      // Tells any buffering proxy to pass bytes straight through; without it a
-      // token-by-token stream arrives as one lump at the end.
-      "x-accel-buffering": "no",
-    },
-  });
+    let content = "";
+    let saved: Message | null = null;
+    // Closing the generator (a hang-up, or Stop) aborts this, which stops the
+    // in-flight model request instead of letting it run on unwatched.
+    const abort = new AbortController();
+
+    try {
+      for await (const event of runAgent({
+        history,
+        question,
+        attachments,
+        prefs: body.prefs,
+        userName: user.name || user.email,
+        signal: abort.signal,
+      })) {
+        yield event;
+        if (event.type === "text") content += event.text;
+        if (event.type === "done") {
+          saved = {
+            id: crypto.randomUUID(),
+            owner: user.id,
+            convId,
+            seq: userMessage.seq + 1,
+            role: "assistant",
+            content: event.content || content,
+            createdAt: new Date().toISOString(),
+            attachments: [],
+            steps: event.steps,
+            error: event.stopReason === "aborted" ? "Stopped." : null,
+            model: event.model,
+            usage: event.usage,
+          };
+        }
+        if (event.type === "error") {
+          saved = {
+            id: crypto.randomUUID(),
+            owner: user.id,
+            convId,
+            seq: userMessage.seq + 1,
+            role: "assistant",
+            content,
+            createdAt: new Date().toISOString(),
+            attachments: [],
+            steps: [],
+            error: event.message,
+            model: null,
+            usage: null,
+          };
+        }
+      }
+    } finally {
+      abort.abort();
+      // Runs on a client hang-up too, so whatever streamed is still recorded.
+      // Without this the browser's "Stop" would leave a conversation whose last
+      // turn exists on screen and nowhere else.
+      if (!saved && content) {
+        saved = {
+          id: crypto.randomUUID(),
+          owner: user.id,
+          convId,
+          seq: userMessage.seq + 1,
+          role: "assistant",
+          content,
+          createdAt: new Date().toISOString(),
+          attachments: [],
+          steps: [],
+          error: "Stopped.",
+          model: null,
+          usage: null,
+        };
+      }
+      if (saved) {
+        await messages()
+          .put(messageKey(user.id, convId, saved.seq, saved.id), saved)
+          .catch(() => undefined);
+        await conversations()
+          .put(conversationKey(user.id, convId), {
+            ...conversation,
+            preview: (saved.content || question).slice(0, 120),
+            messageCount: history.length + 2,
+            updatedAt: new Date().toISOString(),
+          })
+          .catch(() => undefined);
+      }
+    }
+
+    if (saved) yield { type: "saved", message: saved };
+
+    // Title last: it costs an LLM call, and a failure here must not affect the
+    // conversation that was just saved successfully.
+    if (isNew && question) {
+      try {
+        const title = await generateTitle(question, body.prefs?.model ?? null);
+        if (title) {
+          const current = await conversations().get(conversationKey(user.id, convId));
+          if (current) {
+            await conversations().put(conversationKey(user.id, convId), { ...current, title });
+            yield { type: "title", title };
+          }
+        }
+      } catch {
+        /* keep the truncated-question fallback */
+      }
+    }
+  }
+
+  // toNdjson owns the parts that are easy to get wrong: a throw mid-stream
+  // becomes a terminal error frame (the 200 is already sent by then, so it
+  // cannot be a status), and a disconnect closes the generator.
+  return toNdjson(frames());
 });
 
 export default app;

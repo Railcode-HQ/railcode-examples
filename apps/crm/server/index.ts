@@ -17,6 +17,7 @@ import {
   llm,
   llmProviders,
   personalConnections,
+  toNdjson,
   type LlmMessage,
   type LlmOptions,
 } from "@railcode/sdk";
@@ -212,60 +213,12 @@ app.post("/api/rc/llm/generate", async (c) => {
 
 app.post("/api/rc/llm/stream", async (c) => {
   const body = (await c.req.json()) as LlmBody;
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (event: unknown) =>
-        controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
-      try {
-        for await (const event of llm.stream(body.input, (body.opts ?? {}) as LlmOptions)) {
-          send(event);
-        }
-      } catch (err) {
-        // The 200 is already committed, so a mid-stream failure cannot be an
-        // HTTP status. Dig the platform's typed code
-        // (daily_token_limit_exceeded, provider_auth_error, …) out of the body
-        // and ride it on the stream, exactly where the browser loop expects it.
-        send(errorEvent(err));
-      } finally {
-        controller.close();
-      }
-    },
-  });
-  return new Response(stream, {
-    headers: {
-      "content-type": "application/x-ndjson; charset=utf-8",
-      "cache-control": "no-cache",
-      // Tells any buffering proxy to pass bytes straight through; without it a
-      // token-by-token stream arrives as one lump at the end.
-      "x-accel-buffering": "no",
-    },
-  });
+  // toNdjson owns the two parts that are easy to get wrong: the 200 is already
+  // committed when a mid-stream failure happens, so it rides the stream as an
+  // error frame carrying the platform's typed code
+  // (daily_token_limit_exceeded, provider_auth_error, …) — exactly where the
+  // browser loop expects it — and a client that hangs up closes the run.
+  return toNdjson(llm.stream(body.input, (body.opts ?? {}) as LlmOptions));
 });
-
-function errorEvent(err: unknown): { type: "error"; error: string; message: string } {
-  if (err instanceof ApiError) {
-    let error = "provider_error";
-    let message = err.message;
-    try {
-      const body = JSON.parse(err.message) as Record<string, unknown>;
-      const detail = (body.detail ?? body) as Record<string, unknown> | string;
-      if (typeof detail === "object" && detail) {
-        if (typeof detail.error === "string") error = detail.error;
-        if (typeof detail.message === "string") message = detail.message;
-      } else if (typeof detail === "string") {
-        message = detail;
-      }
-    } catch {
-      /* not JSON — keep the raw body as the message */
-    }
-    return { type: "error", error, message };
-  }
-  return {
-    type: "error",
-    error: "wire_error",
-    message: err instanceof Error ? err.message : String(err),
-  };
-}
 
 export default app;
