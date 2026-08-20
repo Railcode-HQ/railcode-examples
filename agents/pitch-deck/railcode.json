@@ -1,5 +1,6 @@
 {
   "app": "pitch-deck",
-  "build": "npm run build",
-  "dist": "dist"
+  "type": "hono+vite",
+  "dist": "dist/client",
+  "server": "dist/server/index.js"
 }

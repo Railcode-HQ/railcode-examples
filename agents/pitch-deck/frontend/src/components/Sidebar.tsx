@@ -22,7 +22,10 @@ export function Sidebar() {
     deck: versions.length || undefined,
   };
 
-  const user = identity?.user.name ?? "you";
+  // v2 identity is the verified caller and nothing else: no app record, no org
+  // record. ctx.user carries id/name/email/is_admin/roles, so the footer shows
+  // the person rather than the workspace.
+  const user = identity?.name || identity?.email || "you";
 
   return (
     <aside>
@@ -54,7 +57,7 @@ export function Sidebar() {
         <span className="ava">{initials(user)}</span>
         <div className="who">
           <div className="nm">{user}</div>
-          <div className="em">{identity?.org.name ?? "railcode"}</div>
+          <div className="em">{identity?.email ?? ""}</div>
         </div>
       </div>
     </aside>

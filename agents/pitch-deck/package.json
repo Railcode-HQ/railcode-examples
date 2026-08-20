@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -p tsconfig.json && vite build",
-    "preview": "vite preview"
+    "dev": "railcode dev",
+    "check": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@railcode/sdk": "^0.3.0",
+    "hono": "^4.6.0",
     "lucide-react": "1.25.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

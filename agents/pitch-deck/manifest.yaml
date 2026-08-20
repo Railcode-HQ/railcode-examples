@@ -1,2 +1,15 @@
+# App authority, ratified at deploy against the deployer's own grants.
+#
+# `run_as: app` is mandatory on apps v2: the worker IS the principal.
 run_as: app
+
+# The one authority this app has beyond its own store: starting the deck agent.
+#
+# Under v2 `agents:` is a REFUSAL LIST, not a hint — an agent that is not named
+# here cannot be started from the worker, whatever grants the deployer holds.
+# The name must match the agent exactly (see agents/pitch-deck-writer/).
+#
+# The reverse direction needs no declaration at all. The agent's own manifest
+# grants it app_data/app_files on this app, so its output lands in the app's
+# store without the app asking for anything.
 agents: [pitch-deck-writer]

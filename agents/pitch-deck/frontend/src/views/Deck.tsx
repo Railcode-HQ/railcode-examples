@@ -1,6 +1,7 @@
 import { Download, FileWarning, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { deckSrc } from "@/lib/api";
 import { formatDateTime, VersionRecord } from "@/lib/materials";
 import { useDeckStore } from "@/store/deck-store";
 
@@ -27,49 +28,6 @@ function versionNumbers(versions: VersionRecord[]): Map<string, number> {
   return map;
 }
 
-// Railcode serves file bytes with `Content-Disposition: attachment`, so pointing
-// an <iframe> straight at files.url() just triggers a download. Fetching it
-// ourselves and handing the iframe a blob: URL renders it inline instead.
-function usePdfObjectUrl(fileName: string | undefined) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setUrl(null);
-    setError(null);
-    if (!fileName) return;
-
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    setLoading(true);
-
-    fetch(files.url(fileName))
-      .then((res) => {
-        if (!res.ok) throw new Error(`Could not load the PDF (status ${res.status}).`);
-        return res.blob();
-      })
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
-        setUrl(objectUrl);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [fileName]);
-
-  return { url, error, loading };
-}
-
 export function Deck() {
   const {
     materials,
@@ -86,7 +44,10 @@ export function Deck() {
   const selected = versions.find((v) => v.id === selectedVersionId) ?? versions[0] ?? null;
   const noMaterials = materials.length === 0;
   const numbers = useMemo(() => versionNumbers(versions), [versions]);
-  const { url: pdfUrl, error: pdfError, loading: pdfLoading } = usePdfObjectUrl(selected?.fileName);
+  // The worker streams the PDF back with `Content-Disposition: inline`, so the
+  // iframe points straight at a route. The v1 app had to fetch the bytes and
+  // build a blob: URL, because the platform served files as attachments.
+  const pdfSrc = selected ? deckSrc(selected.id) : null;
 
   return (
     <>
@@ -148,7 +109,7 @@ export function Deck() {
               {selected ? (
                 <a
                   className="btn ghost sm"
-                  href={files.url(selected.fileName)}
+                  href={deckSrc(selected.id)}
                   target="_blank"
                   rel="noreferrer"
                   title={selected.fileName}
@@ -158,21 +119,8 @@ export function Deck() {
                 </a>
               ) : null}
             </div>
-            {selected ? (
-              pdfLoading ? (
-                <div className="empty" style={{ padding: "48px 20px" }}>
-                  <span className="spin" />
-                  <div className="es">Loading PDF…</div>
-                </div>
-              ) : pdfError ? (
-                <div className="empty" style={{ padding: "48px 20px" }}>
-                  <FileWarning />
-                  <div className="et">Couldn&apos;t load the PDF</div>
-                  <div className="es">{pdfError}</div>
-                </div>
-              ) : pdfUrl ? (
-                <iframe className="pdf-frame" title={`Version ${numbers.get(selected.id)}`} src={pdfUrl} />
-              ) : null
+            {selected && pdfSrc ? (
+              <iframe className="pdf-frame" title={`Version ${numbers.get(selected.id)}`} src={pdfSrc} />
             ) : (
               <div className="empty" style={{ padding: "48px 20px" }}>
                 <FileWarning />
