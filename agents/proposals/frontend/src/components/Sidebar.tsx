@@ -16,7 +16,9 @@ function initials(name: string): string {
  */
 export function Sidebar() {
   const { proposals, selectedId, select, identity } = useProposalStore();
-  const user = identity?.user.name ?? "you";
+  // v2 identity is the verified caller and nothing else: ctx.user carries
+  // id/name/email/is_admin/roles, with no app or org record attached.
+  const user = identity?.name || identity?.email || "you";
 
   return (
     <aside>
@@ -56,7 +58,7 @@ export function Sidebar() {
         <span className="ava">{initials(user)}</span>
         <div className="who">
           <div className="nm">{user}</div>
-          <div className="em">{identity?.org.name ?? "railcode"}</div>
+          <div className="em">{identity?.email ?? ""}</div>
         </div>
       </div>
     </aside>

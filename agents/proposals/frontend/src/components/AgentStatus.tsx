@@ -38,7 +38,7 @@ function RunningNote() {
   if (!manualRun) return null;
 
   const other =
-    manualRun.startedBy && manualRun.startedBy !== identity?.user.name
+    manualRun.startedBy && manualRun.startedBy !== (identity?.name || identity?.email)
       ? `${manualRun.startedBy} started a check. `
       : "";
 

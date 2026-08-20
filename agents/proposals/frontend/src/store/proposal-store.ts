@@ -1,10 +1,9 @@
 import { create } from "zustand";
 
+import { api, ApiError, type Me, type RunStatus } from "@/lib/api";
 import {
   agentCallError,
-  AGENT_NAME,
   cleanError,
-  DOCX_MIME,
   isRunStale,
   ManualRun,
   ProposalRecord,
@@ -19,6 +18,9 @@ import {
  * for. The one exception is Run now, which starts a run for someone who doesn't
  * want to wait up to 30 minutes — and that is where the run state, the polling
  * and the failure-code handling below come from.
+ *
+ * Nothing here talks to the platform. The worker does, and it answers the whole
+ * page in one call (`api.state`) rather than the three the v1 page made.
  */
 type ProposalState = {
   identity: Me | null;
@@ -47,23 +49,11 @@ type ProposalState = {
   clearNotice: () => void;
 };
 
-const proposalsCol = () => db.collection<ProposalRecord>("proposals");
-const stateCol = () => db.collection<ScoutState>("state");
-/** The same `state` collection the agent writes `scout` into, under its own key. */
-const runCol = () => db.collection<ManualRun>("state");
-
-const RUN_KEY = "manualRun";
-
 /** Fast enough to feel live against a run that usually takes minutes, not seconds. */
 const RUN_POLL_MS = 3000;
 
-async function loadProposals(): Promise<ProposalRecord[]> {
-  const rows = await proposalsCol().query().orderBy("createdAt", "desc").page(1, 200);
-  return rows.map((r) => r.value);
-}
-
-function terminal(run: AgentRun): boolean {
-  return run.status !== "queued" && run.status !== "running";
+function terminal(status: string): boolean {
+  return status !== "queued" && status !== "running";
 }
 
 function sleep(ms: number) {
@@ -78,7 +68,7 @@ export const useProposalStore = create<ProposalState>((set, get) => {
   async function clearManualRun() {
     set({ manualRun: null });
     // Advisory: if the delete fails the marker ages out via isRunStale instead.
-    await runCol().delete(RUN_KEY).catch(() => undefined);
+    await api.clearRun().catch(() => undefined);
   }
 
   /**
@@ -92,18 +82,28 @@ export const useProposalStore = create<ProposalState>((set, get) => {
     if (watching.has(requestId)) return;
     watching.add(requestId);
     try {
-      let run = await agents.get(requestId);
-      while (!terminal(run)) {
+      let run: RunStatus = await api.runStatus(requestId);
+      while (!terminal(run.status)) {
         await sleep(RUN_POLL_MS);
-        run = await agents.get(requestId);
+        run = await api.runStatus(requestId);
+        // A colleague's run: the shared marker says one is going, but a run
+        // belongs to (app, caller) so its status is not ours to read. Watch the
+        // marker instead — it disappears when their tab finishes the run.
+        if (!run.mine) {
+          await get().refresh();
+          if (!get().manualRun) break;
+        }
       }
+
+      if (!run.mine) return;
 
       await clearManualRun();
       await get().refresh();
 
       const scout = get().scout;
-      if (run.status !== "success") set({ error: runFailureMessage(run) });
-      else if (scout?.outcome === "error") {
+      if (run.status !== "success") {
+        set({ error: runFailureMessage({ status: run.status, error_code: run.errorCode, error_message: run.errorMessage }) });
+      } else if (scout?.outcome === "error") {
         set({ error: scout.error || "The run reported an error." });
       } else set({ notice: runOutcomeNotice(scout) });
     } catch (error) {
@@ -135,25 +135,20 @@ export const useProposalStore = create<ProposalState>((set, get) => {
 
     async bootstrap() {
       try {
-        const [identity, proposals, scout, stored] = await Promise.all([
-          me(),
-          loadProposals(),
-          stateCol().get("scout"),
-          runCol().get(RUN_KEY),
-        ]);
-        const live = isRunStale(stored) ? null : stored;
+        const [identity, state] = await Promise.all([api.me(), api.state()]);
+        const live = isRunStale(state.manualRun) ? null : state.manualRun;
         set({
           identity,
-          proposals,
-          scout,
+          proposals: state.proposals,
+          scout: state.scout,
           manualRun: live,
-          selectedId: proposals[0]?.id ?? null,
+          selectedId: state.proposals[0]?.id ?? null,
           loaded: true,
         });
         // A run started before this tab existed is still worth following: it is
         // what greys the button out, and its result is what fills this page.
         if (live) void watch(live.requestId);
-        else if (stored) void clearManualRun();
+        else if (state.manualRun) void clearManualRun();
       } catch (error) {
         set({ error: cleanError(error), loaded: true });
       }
@@ -168,21 +163,17 @@ export const useProposalStore = create<ProposalState>((set, get) => {
       if (get().refreshing) return;
       set({ refreshing: true });
       try {
-        const [proposals, scout, stored] = await Promise.all([
-          loadProposals(),
-          stateCol().get("scout"),
-          runCol().get(RUN_KEY),
-        ]);
-        const live = isRunStale(stored) ? null : stored;
+        const state = await api.state();
+        const live = isRunStale(state.manualRun) ? null : state.manualRun;
         set((s) => ({
-          proposals,
-          scout,
+          proposals: state.proposals,
+          scout: state.scout,
           manualRun: live,
           // Keep the open document selected; fall back to the newest.
           selectedId:
-            s.selectedId && proposals.some((p) => p.id === s.selectedId)
+            s.selectedId && state.proposals.some((p) => p.id === s.selectedId)
               ? s.selectedId
-              : (proposals[0]?.id ?? null),
+              : (state.proposals[0]?.id ?? null),
         }));
         // Someone else's tab started this one; follow it so this tab's button
         // comes back at the right moment rather than on the next poll.
@@ -197,31 +188,21 @@ export const useProposalStore = create<ProposalState>((set, get) => {
     /**
      * Starts a run and returns as soon as it is queued.
      *
-     * `agents.start` rather than `agents.invoke`: a run is allowed 300 seconds
-     * and invoke would hold the request open for all of them. Nothing is passed
-     * as input, and that is not an oversight — the agent declares no
-     * `input_schema` (declaring one fails every scheduled run) and decides what
-     * to do from its own ledger. A manual run is the same run, just sooner.
+     * The worker calls `agents.start`, not `agents.invoke`: a run is allowed 300
+     * seconds and invoke would spend the invocation's subrequest budget polling
+     * for all of them. A manual run is the same run the schedule would do, just
+     * sooner.
      */
     async runNow() {
       if (get().starting || get().manualRun) return;
       set({ starting: true, error: null });
       try {
-        const started = await agents.start(AGENT_NAME);
-        const live: ManualRun = {
-          requestId: started.request_id,
-          startedAt: new Date().toISOString(),
-          startedBy: get().identity?.user.name,
-        };
+        const live = await api.startRun();
         set({
           manualRun: live,
           notice: "Checking your meetings. This keeps going if you close the tab.",
         });
         void watch(live.requestId);
-        // Written after the run is safely started, and tolerated if it fails:
-        // this marker is what other tabs read, so losing it costs them the
-        // shared view of an in-flight run, not the run.
-        await runCol().put(RUN_KEY, live).catch(() => undefined);
       } catch (error) {
         set({ error: agentCallError(error) });
       } finally {
@@ -233,23 +214,17 @@ export const useProposalStore = create<ProposalState>((set, get) => {
     setNavOpen: (navOpen) => set({ navOpen }),
 
     /**
-     * The editor exports the edited document as a .docx Blob; writing it back
-     * under the same file name keeps one canonical document per proposal rather
-     * than accumulating near-identical copies.
+     * The editor exports the edited document as a .docx Blob. The worker writes
+     * it back under the RECORD's own file name — the browser never says where
+     * the bytes land — so one canonical document per proposal, and no way for an
+     * edit to become a write to something else.
      */
     async saveEditedDocx(proposalId, blob) {
       const record = get().proposals.find((p) => p.id === proposalId);
       if (!record) return;
       set({ saving: true, error: null });
       try {
-        await files.upload(record.fileName, blob, DOCX_MIME);
-        const next: ProposalRecord = {
-          ...record,
-          edited: true,
-          editedAt: new Date().toISOString(),
-          editedBy: get().identity?.user.name ?? undefined,
-        };
-        await proposalsCol().put(record.id, next);
+        const next = await api.saveDocx(proposalId, blob);
         set((s) => ({
           proposals: s.proposals.map((p) => (p.id === proposalId ? next : p)),
           notice: "Saved.",
@@ -265,3 +240,6 @@ export const useProposalStore = create<ProposalState>((set, get) => {
     clearNotice: () => set({ notice: null }),
   };
 });
+
+// Re-exported so views keep a single import for run errors.
+export { ApiError };

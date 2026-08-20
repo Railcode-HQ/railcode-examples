@@ -49,7 +49,10 @@ export type ScoutState = {
 };
 
 /**
- * A run someone started from Run now, held in SHARED scope on purpose.
+ * A run someone started from Run now, held in the app's own store on purpose.
+ *
+ * A v2 app has ONE flat store and it is shared by every member, so this marker
+ * is visible to everyone by construction — which is exactly what is wanted here.
  *
  * A run takes up to five minutes, so the tab that pressed the button will often
  * be reloaded or closed before it lands. Keeping the request id here is what
@@ -144,13 +147,18 @@ export function cleanError(error: unknown): string {
 // --- triggering a run ------------------------------------------------------
 
 /**
- * A thrown SDK error from `agents.start`, turned into something with a fix in it.
+ * A failed Run now, turned into something with a fix in it.
  *
- * The case worth naming is `not found`, which is what a personal agent returns
- * to anyone but its owner — Railcode 404s rather than 403s so as not to confirm
- * the agent exists. It reads as a bug otherwise. Note `railcode dev` proxies
- * agent runs to the real backend, so a press here starts a real run; a 404
- * locally means the same thing it means anywhere else.
+ * The worker relays the platform's status and body verbatim, so the cases below
+ * survive the extra hop. The one worth naming is `not found`, which is what a
+ * personal agent returns to anyone but its owner — Railcode 404s rather than
+ * 403s so as not to confirm the agent exists. It reads as a bug otherwise.
+ *
+ * A 403 is the other shape: that is the app's manifest, not the caller — the
+ * agent is not in `agents:`, or the deploy was never ratified for it.
+ *
+ * Note `railcode dev` proxies agent runs to the real backend, so a press here
+ * starts a real run; a 404 locally means the same thing it means anywhere else.
  */
 export function agentCallError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -163,8 +171,8 @@ export function agentCallError(error: unknown): string {
     /* not JSON — the raw text is the best we have */
   }
 
-  if (/not found|forbidden|not authorized|permission/i.test(detail)) {
-    return `Couldn't start ${AGENT_NAME}. Either it hasn't been created yet, this app's manifest hasn't been ratified for it, or you aren't its owner — it's a personal agent, and only the person who created it can run it, because it reads their own Granola account. The schedule still runs either way.`;
+  if (/not found|forbidden|not authorized|permission|manifest/i.test(detail)) {
+    return `Couldn't start ${AGENT_NAME}. Either it hasn't been created yet, this app's manifest doesn't declare it under \`agents:\` (or that deploy was never ratified), or you aren't its owner — it's a personal agent, and only the person who created it can run it, because it reads their own Granola account. The schedule still runs either way.`;
   }
   return detail || "Couldn't start the run.";
 }

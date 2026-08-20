@@ -4,15 +4,17 @@ import { AlertTriangle, Download, FileWarning, Inbox, Loader2, Quote, Save } fro
 import { useEffect, useRef, useState } from "react";
 
 import { AgentStatus } from "@/components/AgentStatus";
+import { docxSrc } from "@/lib/api";
 import { DOCX_MIME, formatDateTime, ProposalRecord, relativeTime } from "@/lib/proposals";
 import { useProposalStore } from "@/store/proposal-store";
 
 /**
- * Railcode serves file bytes with `Content-Disposition: attachment`, and the
- * editor wants a File/Blob anyway — so fetch the .docx ourselves and hand it a
- * real File (which also gives it a sensible document name).
+ * The editor wants a File/Blob, so fetch the .docx from the worker's route and
+ * wrap it in a real File (which also gives the editor a sensible document name).
+ * The worker streams the bytes, so this is a plain same-origin fetch — no signed
+ * URL, and it works on every storage backend.
  */
-function useDocxFile(fileName: string | undefined) {
+function useDocxFile(proposalId: string | undefined, fileName: string | undefined) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,19 +22,19 @@ function useDocxFile(fileName: string | undefined) {
   useEffect(() => {
     setFile(null);
     setError(null);
-    if (!fileName) return;
+    if (!proposalId) return;
 
     let cancelled = false;
     setLoading(true);
 
-    fetch(files.url(fileName))
+    fetch(docxSrc(proposalId))
       .then((res) => {
         if (!res.ok) throw new Error(`Could not load the document (status ${res.status}).`);
         return res.blob();
       })
       .then((blob) => {
         if (cancelled) return;
-        const base = fileName.split("/").pop() || "proposal.docx";
+        const base = fileName?.split("/").pop() || "proposal.docx";
         setFile(new File([blob], base, { type: DOCX_MIME }));
       })
       .catch((err: unknown) => {
@@ -45,7 +47,7 @@ function useDocxFile(fileName: string | undefined) {
     return () => {
       cancelled = true;
     };
-  }, [fileName]);
+  }, [proposalId, fileName]);
 
   return { file, error, loading };
 }
@@ -102,7 +104,7 @@ export function Proposal() {
 
   const editorRef = useRef<SuperDocRef>(null);
   const selected = proposals.find((p) => p.id === selectedId) ?? proposals[0] ?? null;
-  const { file, error, loading } = useDocxFile(selected?.fileName);
+  const { file, error, loading } = useDocxFile(selected?.id, selected?.fileName);
 
   async function handleSave() {
     const instance = editorRef.current?.getInstance();
@@ -150,7 +152,7 @@ export function Proposal() {
         <div className="phead-actions">
           <a
             className="btn ghost sm"
-            href={files.url(selected.fileName)}
+            href={docxSrc(selected.id)}
             target="_blank"
             rel="noreferrer"
           >
