@@ -15,7 +15,7 @@ function statusOf(err: unknown): number | null {
   return null;
 }
 
-/** Shared by thrown API errors and `llm.stream()`'s error event, which carries
+/** Shared by thrown API errors and the ndjson error frame, which carries
  *  the same codes but arrives as a stream frame rather than an exception. */
 function fromCode(code: string | null, detail: string | null): string | null {
   switch (code) {

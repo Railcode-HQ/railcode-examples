@@ -1,6 +1,6 @@
 import { ChartIcon, DatabaseIcon, MenuIcon } from "./Icons";
 import { useChatStore } from "@/store/chat-store";
-import type { SourceId } from "@/lib/types";
+import type { SourceId } from "@shared/types";
 
 const SOURCES: { id: SourceId; label: string; icon: "db" | "chart" }[] = [
   { id: "postgres", label: "Postgres", icon: "db" },

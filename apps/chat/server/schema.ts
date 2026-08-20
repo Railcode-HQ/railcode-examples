@@ -1,10 +1,17 @@
-/** Postgres schema introspection.
+/** Postgres schema introspection, in the worker.
  *
  *  Text-to-SQL only works if the model knows the actual tables — without this it
  *  invents plausible ones (`tickets.sla_risk`) and the query fails. We read
- *  `information_schema` once per session and inline a compact digest into the
+ *  `information_schema` once per isolate and inline a compact digest into the
  *  system prompt, which is far cheaper and more reliable than giving the model a
- *  "describe the schema" tool it has to remember to call. */
+ *  "describe the schema" tool it has to remember to call.
+ *
+ *  The cache is per WORKER ISOLATE, not per user session. An isolate serves many
+ *  invocations and then goes away, so this saves the repeated introspection
+ *  without ever holding anything caller-specific — the digest is org schema, the
+ *  same for everyone. */
+
+import { data, dataConnectors } from "@railcode/sdk";
 
 const SYSTEM_SCHEMAS = ["pg_catalog", "information_schema", "pscale_extensions"];
 

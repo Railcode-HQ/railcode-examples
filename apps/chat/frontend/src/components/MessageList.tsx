@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { MessageRow } from "./Message";
 import { useChatStore } from "@/store/chat-store";
-import type { Message } from "@/lib/types";
+import type { Message } from "@shared/types";
 
 /** Auto-scroll that respects the reader: it follows new output only while the
  *  user is already near the bottom, so scrolling up to re-read an earlier answer
@@ -43,6 +43,8 @@ export function MessageList() {
   const streamingMessage: Message | null = stream
     ? {
         id: stream.messageId,
+        // A local, unsaved turn — it has no stored owner yet.
+        owner: "",
         convId: stream.convId,
         seq: -1,
         role: "assistant",

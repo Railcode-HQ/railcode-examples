@@ -2,7 +2,7 @@ import { MessageAttachments } from "./Attachments";
 import { ToolCard } from "./ToolCard";
 import { AlertIcon } from "./Icons";
 import { renderMarkdown } from "@/lib/markdown";
-import type { Message, ToolStep } from "@/lib/types";
+import type { Message, ToolStep } from "@shared/types";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

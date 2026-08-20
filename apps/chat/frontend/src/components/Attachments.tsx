@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FileIcon } from "./Icons";
 import { formatBytes, resolveUrls } from "@/lib/attachments";
-import type { Attachment } from "@/lib/types";
+import type { Attachment } from "@shared/types";
 
 /** Attachment chips on a sent message. Image URLs are resolved in one batched
  *  `files.urls()` call per message rather than one redirect per thumbnail. */

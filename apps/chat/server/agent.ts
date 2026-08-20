@@ -1,23 +1,26 @@
-import { describeStreamError } from "./errors";
+import { llm, type LlmMessage, type LlmRunLimits } from "@railcode/sdk";
+
 import { loadSchema } from "./schema";
 import { buildTools, toUiStep } from "./tools";
-import type { Attachment, Message, Prefs, ToolName, ToolStep } from "./types";
+import type { Attachment, ChatEvent, Message, Prefs, StopReason, ToolName, ToolStep } from "../shared/types";
 
-/** The agent loop.
+/** The agent loop — and on apps v2 it runs HERE, in the worker.
  *
  *  `llm.stream({ tools })` runs the whole loop inside the SDK: the model plans,
- *  the SDK validates each call's args against the tool's schema, runs it here in
- *  the page with the app's own SDK authority, feeds the summarized result back,
+ *  the SDK validates each call's args against the tool's schema, runs it in this
+ *  invocation with the app's own authority, feeds the summarized result back,
  *  and repeats until the model writes its answer. Text streams live throughout —
  *  including any preamble before a tool call — so tool use and token-by-token
  *  output come from one generation rather than a plan/answer split.
  *
- *  What stays the app's job: the system prompt, the tool definitions in
- *  `lib/tools.ts`, and the display/observation split those tools encode.
+ *  Moving the loop server-side is the whole point of the v2 shape. The tools
+ *  here run SQL and call a service connector; on v1 those ran in the page, which
+ *  meant the browser held the authority to do them. Now the browser holds
+ *  nothing: it posts a question and reads back an ndjson stream.
  *
- *  No new authority is involved. The model can only reach what a `run` function
- *  wires up, every turn rides the same audited `/_api` calls the app already
- *  makes, and `run`/`summarize` never cross the wire. */
+ *  What stays the app's job: the system prompt, the tool definitions in
+ *  `tools.ts`, and the display/observation split those tools encode. The model
+ *  can only reach what a `run` function wires up. */
 
 const LIMITS: LlmRunLimits = {
   /** Planning turns. Enough for query → refine → answer, short enough that a
@@ -27,15 +30,16 @@ const LIMITS: LlmRunLimits = {
   timeoutMs: 120_000,
 };
 
+// v2 identity is the verified caller and nothing else — no org record — so the
+// prompt names the person it is answering and leaves the workspace unnamed.
 function systemPrompt(
-  orgName: string,
   userName: string,
   hasTools: boolean,
   hasPostgres: boolean,
   schemaDigest: string,
 ): string {
   const parts = [
-    `You are a data analyst assistant for ${orgName}, answering ${userName}.`,
+    `You are a data analyst assistant, answering ${userName}.`,
     "",
     hasTools
       ? "Use the tools to ground your answer in real data, then explain what you found."
@@ -97,7 +101,7 @@ function toTranscript(history: Message[]): LlmMessage[] {
  *  UI has to say why rather than render a blank turn. `aborted` is the user's
  *  own stop button and is reported by the store, not here. */
 export function stopReasonNote(
-  stopReason: LlmStopReason | null,
+  stopReason: StopReason | null,
   hasContent: boolean,
 ): string | null {
   switch (stopReason) {
@@ -118,33 +122,28 @@ export function stopReasonNote(
 export type AgentRun = {
   content: string;
   steps: ToolStep[];
-  usage: LlmUsage | null;
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number } | null;
   model: string | null;
-  stopReason: LlmStopReason | null;
+  stopReason: StopReason | null;
 };
 
-export type AgentCallbacks = {
-  /** Fired twice per tool call — status "running", then "ok"/"error", same
-   *  `step.id` — so the store upserts by id and the card animates in place. */
-  onStep: (step: ToolStep) => void;
-  onDelta: (text: string) => void;
-};
-
-export async function runAgent(
-  params: {
-    history: Message[];
-    question: string;
-    attachments: Attachment[];
-    prefs: Prefs;
-    orgName: string;
-    userName: string;
-    /** Cancels the run. Aborting resolves normally with `stopReason: "aborted"`,
-     *  so the caller branches on stopReason rather than catching. */
-    signal: AbortSignal;
-  },
-  callbacks: AgentCallbacks,
-): Promise<AgentRun> {
-  const { history, question, attachments, prefs, orgName, userName, signal } = params;
+/** Run one turn, yielding the frames the worker writes to the ndjson stream.
+ *
+ *  A generator rather than callbacks: the worker's only job is to serialize
+ *  these, and a generator makes "the stream ends when the run ends" structural.
+ *  Two events per tool call — status "running", then "ok"/"error", same
+ *  `step.id` — so the browser upserts by id and the card animates in place. */
+export async function* runAgent(params: {
+  history: Message[];
+  question: string;
+  attachments: Attachment[];
+  prefs: Prefs;
+  userName: string;
+  /** Cancels the run. Aborting resolves normally with `stopReason: "aborted"`,
+   *  so this settles rather than throwing. */
+  signal: AbortSignal;
+}): AsyncGenerator<ChatEvent, void> {
+  const { history, question, attachments, prefs, userName, signal } = params;
 
   const enabled: ToolName[] = [];
   if (prefs.sources.postgres) enabled.push("query_postgres");
@@ -170,9 +169,9 @@ export async function runAgent(
   // second event for a call overwrites the first in place.
   const steps = new Map<string, ToolStep>();
   let content = "";
-  let usage: LlmUsage | null = null;
+  let usage: AgentRun["usage"] = null;
   let model: string | null = prefs.model;
-  let stopReason: LlmStopReason | null = null;
+  let stopReason: StopReason | null = null;
 
   // With no sources enabled there is nothing to call. An empty `tools` array
   // makes the SDK fall through to a plain streamed turn, so this stays a normal
@@ -181,7 +180,7 @@ export async function runAgent(
 
   const stream = llm.stream(transcript, {
     ...(prefs.model ? { model: prefs.model } : {}),
-    system: systemPrompt(orgName, userName, tools.length > 0, hasPostgres, schemaDigest),
+    system: systemPrompt(userName, tools.length > 0, hasPostgres, schemaDigest),
     tools,
     limits: LIMITS,
     signal,
@@ -206,27 +205,38 @@ export async function runAgent(
         }
       }
       content += text;
-      callbacks.onDelta(text);
+      yield { type: "text", text };
     } else if (event.type === "step") {
       const step = toUiStep(event.step);
       steps.set(step.id, step);
-      callbacks.onStep(step);
+      yield { type: "step", step };
       if (content) pendingBreak = true;
     } else if (event.type === "done") {
       usage = event.usage;
       model = event.model;
-      stopReason = event.stopReason ?? null;
+      stopReason = (event.stopReason ?? null) as StopReason | null;
       // `done.text` is the finished run's answer; the accumulated stream is what
       // the user actually watched arrive. Prefer what was displayed so saving
       // never rewrites the message, and fall back for runs that ended before
       // anything streamed.
       if (!content.trim() && event.text) content = event.text;
     } else if (event.type === "error") {
-      throw new Error(describeStreamError(event));
+      // The gateway's typed code (daily_token_limit_exceeded, provider_auth_error,
+      // …) is relayed verbatim; the browser turns it into advice. Losing the code
+      // here would leave the UI with nothing but a sentence.
+      yield { type: "error", error: event.error, message: event.message };
+      return;
     }
   }
 
-  return { content, steps: [...steps.values()], usage, model, stopReason };
+  yield {
+    type: "done",
+    content,
+    steps: [...steps.values()],
+    usage,
+    model,
+    stopReason,
+  };
 }
 
 /** A cheap, separate call so the sidebar shows something better than the first
@@ -237,10 +247,9 @@ export async function generateTitle(question: string, model: string | null): Pro
     `Write a title of at most 6 words for a chat that starts with this question. Reply with the title only, no quotes or trailing period.\n\n${question}`,
     {
       ...(model ? { model } : {}),
-      temperature: 0,
       maxOutputTokens: 24,
       metadata: { feature: "chat-title", app: "chat" },
     },
   );
-  return result.text.trim().replace(/^["']|["']$/g, "").slice(0, 60);
+  return result.text.trim().replace(/^["\']|["\']$/g, "").slice(0, 60);
 }

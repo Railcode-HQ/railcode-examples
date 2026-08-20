@@ -1,6 +1,5 @@
+# Railcode: .railcode records which deploy this folder matches — local only.
 node_modules/
 dist/
-
-# QA/browse tooling artifacts
-.playwright-mcp/
-.gstack/
+.dev.vars
+.railcode

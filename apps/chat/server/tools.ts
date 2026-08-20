@@ -1,14 +1,17 @@
+import { connector, data, type LlmTool, type LlmToolStep } from "@railcode/sdk";
+
 import { prepareReadOnlySql } from "./sql";
-import type { ToolName, ToolStep } from "./types";
+import { TOOL_LABELS, type ToolName, type ToolStep } from "../shared/types";
 
 /** The tool surface the agent loop can call.
  *
  *  These are `LlmTool` objects handed straight to `llm.stream({ tools })`, so
  *  the SDK drives the loop: it validates `args` against each `schema` before
- *  calling `run`, executes `run` in this page with the app's own SDK authority,
+ *  calling `run`, executes `run` in this WORKER with the app's own authority,
  *  feeds `summarize(result)` back to the model, and repeats until it answers.
- *  Only `{ name, description, schema }` crosses the wire — `run` and
- *  `summarize` never leave the browser.
+ *  Only `{ name, description, schema }` crosses the wire to the gateway — `run`
+ *  and `summarize` never leave the worker, and neither does the SQL connection
+ *  or the PostHog credential.
  *
  *  The observation/display split the app already needed maps exactly onto that
  *  contract: `run` returns the whole `ToolResult` (the UI reads its
@@ -180,12 +183,6 @@ async function runPosthogApi(
     raw,
   };
 }
-
-export const TOOL_LABELS: Record<ToolName, string> = {
-  query_postgres: "Postgres",
-  posthog_query: "PostHog · HogQL",
-  posthog_api: "PostHog · API",
-};
 
 const TOOL_NAMES = Object.keys(TOOL_LABELS) as ToolName[];
 

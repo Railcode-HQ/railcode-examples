@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { CloseIcon, PencilIcon, PinIcon, PlusIcon, SearchIcon, TrashIcon } from "./Icons";
 import { useChatStore } from "@/store/chat-store";
-import type { Conversation } from "@/lib/types";
+import type { Conversation } from "@shared/types";
 
 function startOfDay(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();

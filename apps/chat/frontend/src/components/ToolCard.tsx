@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { DataTable } from "./DataTable";
 import { ChartIcon, ChevronIcon, DatabaseIcon } from "./Icons";
-import { TOOL_LABELS } from "@/lib/tools";
-import type { ToolStep } from "@/lib/types";
+import { TOOL_LABELS } from "@shared/types";
+import type { ToolStep } from "@shared/types";
 
 /** A single tool invocation, shown inline in the transcript.
  *
