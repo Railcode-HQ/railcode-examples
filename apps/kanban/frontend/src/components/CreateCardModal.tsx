@@ -28,7 +28,7 @@ export function CreateCardModal() {
   const addCard = useStore((s) => s.addCard);
   const flash = useStore((s) => s.flash);
   const allCards = useStore((s) => s.cards);
-  const userUuid = useStore((s) => s.userUuid);
+  const userId = useStore((s) => s.userId);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -210,11 +210,11 @@ export function CreateCardModal() {
           <div className="field">
             <div className="field-label-row">
               <span className="field-label">Assignee</span>
-              {userUuid && assignee !== userUuid && (
+              {userId && assignee !== userId && (
                 <button
                   type="button"
                   className="link-btn"
-                  onClick={() => setAssignee(userUuid)}
+                  onClick={() => setAssignee(userId)}
                 >
                   Assign to me
                 </button>

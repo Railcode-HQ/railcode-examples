@@ -7,7 +7,7 @@ import { IconChevron, IconCheck } from "./icons";
 export function useAssigneeMap(): Record<string, AssigneeOption> {
   const assignees = useStore((s) => s.assignees);
   return useMemo(
-    () => Object.fromEntries(assignees.map((a) => [a.uuid, a])),
+    () => Object.fromEntries(assignees.map((a) => [a.id, a])),
     [assignees],
   );
 }
@@ -81,7 +81,7 @@ export function AssigneeSelect({
   }, [highlight]);
 
   const choose = (opt: AssigneeOption | null) => {
-    onChange(opt ? opt.uuid : null);
+    onChange(opt ? opt.id : null);
     setOpen(false);
     setQuery("");
   };
@@ -173,10 +173,10 @@ export function AssigneeSelect({
                 {!value && <IconCheck />}
               </div>
               {filtered.map((a, i) => {
-                const on = value === a.uuid;
+                const on = value === a.id;
                 return (
                   <div
-                    key={a.uuid}
+                    key={a.id}
                     data-i={i + 1}
                     role="option"
                     aria-selected={on}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
+import { attachmentHref } from "../lib/api";
 import { normalizeTag } from "../lib/parse";
 import {
   PRIORITIES,
@@ -18,7 +19,7 @@ export function CardDrawer() {
   const card = useStore((s) => (id ? s.cards[id] : null));
   const close = useStore((s) => s.closeDrawer);
   const updateCard = useStore((s) => s.updateCard);
-  const userUuid = useStore((s) => s.userUuid);
+  const userId = useStore((s) => s.userId);
   const setCardStatus = useStore((s) => s.setCardStatus);
   const deleteCard = useStore((s) => s.deleteCard);
   const addAttachment = useStore((s) => s.addAttachment);
@@ -164,10 +165,10 @@ export function CardDrawer() {
           <div className="field">
             <div className="field-label-row">
               <span className="field-label">Assignee</span>
-              {userUuid && card.assignee !== userUuid && (
+              {userId && card.assignee !== userId && (
                 <button
                   className="link-btn"
-                  onClick={() => updateCard(card.id, { assignee: userUuid })}
+                  onClick={() => updateCard(card.id, { assignee: userId })}
                 >
                   Assign to me
                 </button>
@@ -243,7 +244,7 @@ export function CardDrawer() {
                     <IconPaperclip className="attach-icon" />
                     <a
                       className="attach-name"
-                      href={files.url(a.id)}
+                      href={attachmentHref(card.id, a.id)}
                       target="_blank"
                       rel="noreferrer"
                       download={a.name}

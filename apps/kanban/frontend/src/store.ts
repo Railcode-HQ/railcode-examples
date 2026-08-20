@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type {
-  Attachment,
   AssigneeOption,
   Card,
   DoneFilter,
@@ -9,30 +8,24 @@ import type {
   Status,
   View,
 } from "./types";
+import { ApiError, api } from "./lib/api";
 import { applyTheme, loadTheme, saveTheme, type ThemeSetting } from "./lib/theme";
 
-const COLLECTION = "cards";
-
-// Cards are a shared team board — every org member sees every card, so they
-// can be assigned to (and filtered by) each other. New card keys keep the
-// `creatorUuid:id` shape for continuity with cards written before the board
-// was shared, but nothing scopes reads by it anymore (see loadCards below).
-function keyFor(userUuid: string, id: string): string {
-  return `${userUuid}:${id}`;
-}
+// The store holds the board and the view state. It does not know how cards are
+// stored, who may delete one, or that a platform exists — those all live in the
+// worker (server/index.ts), reached through `api`.
+//
+// Every mutation below is optimistic: the local card changes first so the board
+// stays responsive, then the worker call goes out. A rejection rolls the change
+// back, because the worker's answer is the real one.
 
 function nowIso(): string {
   return new Date().toISOString();
 }
 
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// done_at bookkeeping as a card crosses the Done boundary.
+// done_at bookkeeping as a card crosses the Done boundary. The worker keeps its
+// own copy of this rule — this one only makes the optimistic card look right
+// until the worker's answer replaces it.
 function resolveDoneAt(next: Status, prevDoneAt: string | null): string | null {
   if (next === "done") return prevDoneAt ?? nowIso();
   return null;
@@ -141,9 +134,10 @@ export interface NewCardInput {
 }
 
 interface KanbanState {
-  userUuid: string;
+  userId: string;
   userName: string;
   userEmail: string;
+  isAdmin: boolean;
 
   cards: Record<string, Card>;
   loading: boolean;
@@ -160,7 +154,7 @@ interface KanbanState {
   doneFilter: DoneFilter;
   collapsed: Collapsed;
 
-  // Assignable org members, from the Railcode appUsers() SDK global
+  // Assignable org members, from the worker's /api/users route.
   assignees: AssigneeOption[];
   assigneesLoading: boolean;
   assigneesError: string | null;
@@ -207,11 +201,23 @@ interface KanbanState {
 }
 
 export const useStore = create<KanbanState>((set, get) => {
-  const collection = () => db.collection<Card>(COLLECTION);
-  const persist = (card: Card) => collection().put(keyFor(get().userUuid, card.id), card);
+  const message = (err: unknown) =>
+    err instanceof Error ? err.message : String(err);
+
+  // Replace one card in place with whatever the worker returned. The worker is
+  // the authority on the stored card, so its answer overwrites the optimistic one.
+  const settle = (card: Card) => set((s) => ({ cards: { ...s.cards, [card.id]: card } }));
+
+  // Put a card back the way it was, and surface why. Used when the worker
+  // refuses (403 on someone else's delete) or the network drops.
+  const rollback = (card: Card | undefined, err: unknown) => {
+    if (card) set((s) => ({ cards: { ...s.cards, [card.id]: card } }));
+    set({ error: message(err) });
+  };
+
   const persistFilters = () => {
     const s = get();
-    saveFilters(s.userUuid, {
+    saveFilters(s.userId, {
       search: s.search,
       tagFilter: s.tagFilter,
       priorityFilter: s.priorityFilter,
@@ -221,9 +227,10 @@ export const useStore = create<KanbanState>((set, get) => {
   };
 
   return {
-    userUuid: "",
+    userId: "",
     userName: "",
     userEmail: "",
+    isAdmin: false,
 
     cards: {},
     loading: true,
@@ -251,54 +258,35 @@ export const useStore = create<KanbanState>((set, get) => {
 
     init: async () => {
       try {
-        if (typeof me === "undefined") {
-          throw new Error(
-            "Railcode SDK not loaded — open the app through `railcode dev`, not the raw Vite URL.",
-          );
-        }
-        const who = await me();
+        const who = await api.me();
         set({
-          userUuid: who.user.uuid,
-          userName: who.user.name || who.user.email || "You",
-          userEmail: who.user.email || "",
-          collapsed: loadCollapsed(who.user.uuid),
-          sorts: loadSorts(who.user.uuid),
-          ...loadFilters(who.user.uuid),
+          userId: who.id,
+          userName: who.name || who.email || "You",
+          userEmail: who.email || "",
+          isAdmin: who.is_admin,
+          collapsed: loadCollapsed(who.id),
+          sorts: loadSorts(who.id),
+          ...loadFilters(who.id),
         });
 
-        // Cards are the shared team board — load every card in the
-        // collection (not just this user's), paging through in a stable
-        // order since there's no prefix to scan by anymore.
+        // One route, one answer: the worker pages the whole shared board and
+        // hands it back. Paging is its job, not the browser's.
+        const rows = await api.listCards();
         const cards: Record<string, Card> = {};
-        let pageNum = 1;
-        const size = 200;
-        for (;;) {
-          const rows = await collection()
-            .query()
-            .orderBy("created_at", "asc")
-            .page(pageNum, size);
-          for (const row of rows) {
-            if (row.value && row.value.id) {
-              // Backfill assignee/attachments for cards created before those fields existed.
-              cards[row.value.id] = {
-                ...row.value,
-                assignee: row.value.assignee ?? null,
-                attachments: row.value.attachments ?? [],
-              };
-            }
-          }
-          if (rows.length < size) break;
-          pageNum += 1;
+        for (const card of rows) {
+          // Backfill fields for cards written before they existed.
+          cards[card.id] = {
+            ...card,
+            assignee: card.assignee ?? null,
+            attachments: card.attachments ?? [],
+          };
         }
         set({ cards, loading: false });
 
         // Load assignable teammates in the background (non-blocking).
         void get().loadAssignees();
       } catch (err) {
-        set({
-          loading: false,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        set({ loading: false, error: message(err) });
       }
     },
 
@@ -310,10 +298,13 @@ export const useStore = create<KanbanState>((set, get) => {
 
     addCard: async (input) => {
       const status = input.status ?? "todo";
-      const id = newId();
       const now = nowIso();
-      const card: Card = {
-        id,
+      // A temporary id so the card can render immediately. The worker mints the
+      // real one — a client-chosen id is a client-chosen key, and the worker
+      // never lets the caller pick where a record lands.
+      const tempId = `pending_${now}_${Math.random().toString(36).slice(2, 8)}`;
+      const optimistic: Card = {
+        id: tempId,
         title: input.title.trim() || "Untitled",
         description: input.description?.trim() ?? "",
         status,
@@ -321,38 +312,58 @@ export const useStore = create<KanbanState>((set, get) => {
         tags: input.tags ?? [],
         assignee: input.assignee ?? null,
         attachments: [],
+        created_by: get().userId,
         created_at: now,
         updated_at: now,
         done_at: status === "done" ? now : null,
         order: get().topOrder(status),
       };
-      set((s) => ({ cards: { ...s.cards, [id]: card } }));
+      set((s) => ({ cards: { ...s.cards, [tempId]: optimistic } }));
       try {
-        await persist(card);
+        const saved = await api.createCard({
+          title: optimistic.title,
+          description: optimistic.description,
+          status: optimistic.status,
+          priority: optimistic.priority,
+          tags: optimistic.tags,
+          assignee: optimistic.assignee,
+          order: optimistic.order,
+        });
+        set((s) => {
+          const cards = { ...s.cards };
+          delete cards[tempId];
+          cards[saved.id] = saved;
+          return { cards };
+        });
+        return saved.id;
       } catch (err) {
-        set({ error: err instanceof Error ? err.message : String(err) });
+        set((s) => {
+          const cards = { ...s.cards };
+          delete cards[tempId];
+          return { cards, error: message(err) };
+        });
+        return tempId;
       }
-      return id;
     },
 
     updateCard: async (id, patch) => {
       const prev = get().cards[id];
       if (!prev) return;
       const next: Card = { ...prev, ...patch, updated_at: nowIso() };
-      // Keep done_at consistent if status changed through this path.
       if (patch.status && patch.status !== prev.status) {
         next.done_at = resolveDoneAt(patch.status, prev.done_at);
       }
       set((s) => ({ cards: { ...s.cards, [id]: next } }));
       try {
-        await persist(next);
+        settle(await api.patchCard(id, patch));
       } catch (err) {
-        set({ error: err instanceof Error ? err.message : String(err) });
+        rollback(prev, err);
       }
     },
 
     deleteCard: async (id) => {
       const prev = get().cards[id];
+      if (!prev) return;
       set((s) => {
         const cards = { ...s.cards };
         delete cards[id];
@@ -361,54 +372,49 @@ export const useStore = create<KanbanState>((set, get) => {
           drawerCardId: s.drawerCardId === id ? null : s.drawerCardId,
         };
       });
-      if (!prev) return;
       try {
-        await collection().delete(keyFor(get().userUuid, id));
+        await api.deleteCard(id);
       } catch (err) {
-        set({ error: err instanceof Error ? err.message : String(err) });
+        // The worker allows a delete only to the card's author or an org admin.
+        // A 403 here is the rule working, not a fault — so say so plainly and
+        // put the card back rather than leaving the board lying to the user.
+        rollback(
+          prev,
+          err instanceof ApiError && err.status === 403
+            ? new Error("Only the card's author or an org admin can delete it.")
+            : err,
+        );
       }
-      // Best-effort: drop the card's uploaded blobs too, so they don't
-      // linger as orphans in the app's shared file store.
-      await Promise.all(
-        prev.attachments.map((a) => files.delete(a.id).catch(() => {})),
-      );
     },
 
     addAttachment: async (id, file) => {
-      const prev = get().cards[id];
-      if (!prev) return;
-      const attachment: Attachment = {
-        id: newId(),
-        name: file.name,
-        contentType: file.type || "application/octet-stream",
-        size: file.size,
-        uploaded_at: nowIso(),
-      };
-      await files.upload(attachment.id, file, attachment.contentType);
-      const next: Card = {
-        ...prev,
-        attachments: [...prev.attachments, attachment],
-        updated_at: nowIso(),
-      };
-      set((s) => ({ cards: { ...s.cards, [id]: next } }));
-      await persist(next);
+      if (!get().cards[id]) return;
+      try {
+        // The bytes go to the worker, which stores them and returns the card
+        // with the new attachment on it — one round trip, one source of truth.
+        settle(await api.addAttachment(id, file));
+      } catch (err) {
+        set({ error: message(err) });
+      }
     },
 
     removeAttachment: async (id, attachmentId) => {
       const prev = get().cards[id];
       if (!prev) return;
-      const next: Card = {
-        ...prev,
-        attachments: prev.attachments.filter((a) => a.id !== attachmentId),
-        updated_at: nowIso(),
-      };
-      set((s) => ({ cards: { ...s.cards, [id]: next } }));
+      set((s) => ({
+        cards: {
+          ...s.cards,
+          [id]: {
+            ...prev,
+            attachments: prev.attachments.filter((a) => a.id !== attachmentId),
+          },
+        },
+      }));
       try {
-        await persist(next);
+        settle(await api.removeAttachment(id, attachmentId));
       } catch (err) {
-        set({ error: err instanceof Error ? err.message : String(err) });
+        rollback(prev, err);
       }
-      await files.delete(attachmentId).catch(() => {});
     },
 
     setCardStatus: async (id, status) => {
@@ -429,9 +435,9 @@ export const useStore = create<KanbanState>((set, get) => {
       };
       set((s) => ({ cards: { ...s.cards, [id]: next } }));
       try {
-        await persist(next);
+        settle(await api.patchCard(id, { status, order: next.order }));
       } catch (err) {
-        set({ error: err instanceof Error ? err.message : String(err) });
+        rollback(prev, err);
       }
     },
 
@@ -444,7 +450,7 @@ export const useStore = create<KanbanState>((set, get) => {
     setSort: (status, sort) => {
       const sorts = { ...get().sorts, [status]: sort };
       set({ sorts });
-      saveSorts(get().userUuid, sorts);
+      saveSorts(get().userId, sorts);
     },
     setSearch: (search) => {
       set({ search });
@@ -494,27 +500,21 @@ export const useStore = create<KanbanState>((set, get) => {
     toggleCollapse: (status) => {
       const collapsed = { ...get().collapsed, [status]: !get().collapsed[status] };
       set({ collapsed });
-      saveCollapsed(get().userUuid, collapsed);
+      saveCollapsed(get().userId, collapsed);
     },
 
     loadAssignees: async () => {
       set({ assigneesLoading: true, assigneesError: null });
       try {
-        if (typeof appUsers === "undefined") {
-          throw new Error("appUsers() unavailable");
-        }
-        const people = await appUsers();
+        const people = await api.users();
         const assignees: AssigneeOption[] = people.map((p) => ({
-          uuid: p.uuid,
+          id: p.id,
           name: p.name || p.email || "Unknown",
           email: p.email || "",
         }));
         set({ assignees, assigneesLoading: false });
       } catch (err) {
-        set({
-          assigneesLoading: false,
-          assigneesError: err instanceof Error ? err.message : String(err),
-        });
+        set({ assigneesLoading: false, assigneesError: message(err) });
       }
     },
 

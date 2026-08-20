@@ -5,9 +5,9 @@ export type Priority = 0 | 1 | 2 | 3 | 4;
 // The app's top-level surfaces (sidebar Views group).
 export type View = "board" | "list";
 
-// A file uploaded to a card. `id` doubles as the flat, dot/slash-free name
-// under which the blob is stored via the `files` SDK global — the
-// user-facing filename lives only in `name`.
+// A file uploaded to a card. `id` is the opaque name the worker stores the
+// blob under; the user-facing filename lives only in `name`, so two cards can
+// hold a "notes.pdf" each without colliding.
 export interface Attachment {
   id: string;
   name: string;
@@ -23,17 +23,19 @@ export interface Card {
   status: Status;
   priority: Priority;
   tags: string[];
-  assignee: string | null; // uuid of the app user this card is assigned to
+  assignee: string | null; // id of the org member this card is assigned to
   attachments: Attachment[];
+  created_by: string; // id of the member who created it — the worker sets this
   created_at: string; // ISO
   updated_at: string; // ISO
   done_at: string | null; // ISO when moved to done, else null
   order: number; // manual position within its column (fractional index)
 }
 
-// An org member a card can be assigned to (from the Railcode `appUsers()` SDK global).
+// An org member a card can be assigned to (from the worker's /api/users route,
+// which reads the org directory with the app's own authority).
 export interface AssigneeOption {
-  uuid: string;
+  id: string;
   name: string;
   email: string;
 }

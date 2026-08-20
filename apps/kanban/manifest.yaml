@@ -1,0 +1,10 @@
+# App authority, ratified at deploy against the deployer's own grants.
+#
+# `run_as: app` is mandatory on apps v2 — the worker IS the principal, so every
+# platform call it makes is the app's, never the caller's. That is exactly why
+# the worker has to do the authorization itself (see server/index.ts).
+#
+# The board needs nothing else. It stores cards in the app's own KV, holds
+# attachments in the app's own file store, and reads the org member directory —
+# all of which come with `run_as: app`. No LLM, no agents, no connectors.
+run_as: app

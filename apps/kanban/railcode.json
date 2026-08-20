@@ -1,5 +1,6 @@
 {
   "app": "kanban",
-  "build": "pnpm run build",
-  "dist": "dist"
+  "type": "hono+vite",
+  "dist": "dist/client",
+  "server": "dist/server/index.js"
 }

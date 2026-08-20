@@ -30,7 +30,7 @@ export function Sidebar() {
   const clearAssigneeFilter = useStore((s) => s.clearAssigneeFilter);
   const openPalette = useStore((s) => s.openPalette);
   const setSidebar = useStore((s) => s.setSidebar);
-  const userUuid = useStore((s) => s.userUuid);
+  const userId = useStore((s) => s.userId);
   const userName = useStore((s) => s.userName);
   const userEmail = useStore((s) => s.userEmail);
   const assigneeMap = useAssigneeMap();
@@ -54,14 +54,14 @@ export function Sidebar() {
   }, [cards]);
 
   const myTaskCount = useMemo(
-    () => Object.values(cards).filter((c) => c.assignee === userUuid).length,
-    [cards, userUuid],
+    () => Object.values(cards).filter((c) => c.assignee === userId).length,
+    [cards, userId],
   );
 
   const teammatesInUse = useMemo(() => {
     const counts = new Map<string, number>();
     for (const c of Object.values(cards)) {
-      if (c.assignee && c.assignee !== userUuid) {
+      if (c.assignee && c.assignee !== userId) {
         counts.set(c.assignee, (counts.get(c.assignee) ?? 0) + 1);
       }
     }
@@ -72,7 +72,7 @@ export function Sidebar() {
         name: assigneeMap[uuid]?.name ?? "Unknown",
       }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [cards, assigneeMap, userUuid]);
+  }, [cards, assigneeMap, userId]);
 
   const pick = (v: View) => {
     setView(v);
@@ -153,10 +153,10 @@ export function Sidebar() {
             )}
           </div>
           <div className="tag-list">
-            {userUuid && (
+            {userId && (
               <button
-                className={`nav-item tag-nav${assigneeFilter.includes(userUuid) ? " active" : ""}`}
-                onClick={() => toggleAssigneeFilter(userUuid)}
+                className={`nav-item tag-nav${assigneeFilter.includes(userId) ? " active" : ""}`}
+                onClick={() => toggleAssigneeFilter(userId)}
               >
                 <span className="avatar xs">
                   {assigneeInitials(userName || "You")}
