@@ -50,7 +50,7 @@ export function GranolaModal() {
           {step === "connect" ? (
             <Intro
               title="Connect Granola"
-              body="Import meeting notes and attach them to the people in your CRM. If your workspace gives everyone their own Granola connection, you'll be asked to link your account. Imported meetings are shared with everyone who can use the CRM."
+              body="Import meeting notes and attach them to the people in your CRM. You'll link your own Granola account; nobody else can read it. Imported meetings are shared with everyone who can use the CRM."
               action="Connect"
               onAction={connect}
             />

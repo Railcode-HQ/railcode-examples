@@ -6,7 +6,6 @@
 // call with a new prospect on it before anyone has written a word about them.
 // See `lib/meetings.ts` for how the two are merged.
 
-import { isToolkitConnected } from "@/lib/connect";
 import type { MeetingDetail, MeetingStub } from "@/lib/meetings";
 import { connectors } from "@/lib/railcode";
 
@@ -208,8 +207,10 @@ function toStub(event: GEvent): MeetingStub | undefined {
   };
 }
 
+/** Always false until the calendar is declared in the manifest and allowed by the
+ *  worker, which (like Granola) should only ever call it as a per-user connector. */
 export function isGcalConnected(): Promise<boolean> {
-  return isToolkitConnected(GCAL_TOOLKIT);
+  return Promise.resolve(false);
 }
 
 /**

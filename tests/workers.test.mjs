@@ -86,7 +86,7 @@ beforeEach(() => {
   user = { id: 'alice', name: 'Alice', email: 'alice@example.test', is_admin: false };
   kv.clear(); files.clear(); calls.length = 0;
   connectorResult = [{ type: 'text', text: 'meeting notes' }];
-  connection = { status: 'ready', credential_mode: 'shared', linked: true, consented: true, connect_url: null };
+  connection = { status: 'ready', credential_mode: 'per_user', linked: true, consented: true, connect_url: null };
   connectorList = [
     { name: 'granola', provider: 'granola', has_tools: true },
     { name: 'unrelated', provider: 'gmail', has_tools: true },
@@ -166,10 +166,8 @@ test('CRM shares only declared collections and rejects URL traversal', async () 
   }
 });
 
-test('CRM connector routes expose only configured meeting tools and return raw results', async () => {
-  let response = await post(apps.crm, '/api/rc/connectors', { op: 'list' });
-  assert.deepEqual((await response.json()).map((row) => row.name), ['granola']);
-  response = await post(apps.crm, '/api/rc/connectors', { op: 'call', name: 'granola', tool: 'list_meetings', args: { time_range: 'last_30_days' } });
+test('CRM calls only declared Granola tools, as the caller, through a per-user connector', async () => {
+  const response = await post(apps.crm, '/api/rc/connectors', { op: 'call', name: 'granola', tool: 'list_meetings', args: { time_range: 'last_30_days' } });
   assert.deepEqual(await response.json(), [{ type: 'text', text: 'meeting notes' }]);
   const call = JSON.parse(calls.at(-1).body);
   assert.equal(call.connector, 'granola');
@@ -177,26 +175,37 @@ test('CRM connector routes expose only configured meeting tools and return raw r
   assert.deepEqual(call.arguments, { time_range: 'last_30_days' });
   assert.equal((await post(apps.crm, '/api/rc/connectors', { op: 'call', name: 'gmail', tool: 'send_email' })).status, 403);
   assert.equal((await post(apps.crm, '/api/rc/connectors', { op: 'call', name: 'granola', tool: 'delete_meeting' })).status, 403);
+  assert.equal((await post(apps.crm, '/api/rc/connectors', { op: 'list' })).status, 400);
   assert.equal((await post(apps.crm, '/api/rc/pc', { op: 'connect' })).status, 404);
+});
+
+test('CRM refuses a shared Granola connector, so nobody reads another account', async () => {
+  connection = { status: 'ready', credential_mode: 'shared', linked: true, consented: true, connect_url: null };
+  let response = await post(apps.crm, '/api/rc/connectors', { op: 'call', name: 'granola', tool: 'get_meeting_transcript', args: { meeting_id: 'm1' } });
+  assert.equal(response.status, 403);
+  assert.equal(calls.some((call) => call.path === '/service-connectors/call'), false);
+  response = await post(apps.crm, '/api/rc/connectors', { op: 'connection' });
+  assert.deepEqual(await response.json(), { status: 'shared', connectUrl: null });
+  assert.equal(await granola.isGranolaConnected(), false);
+});
+
+test('CRM fails closed when the connection cannot be checked', async () => {
+  connection = null;
+  assert.equal((await post(apps.crm, '/api/rc/connectors', { op: 'call', name: 'granola', tool: 'list_meetings' })).status, 404);
+  assert.equal(calls.some((call) => call.path === '/service-connectors/call'), false);
+  const response = await post(apps.crm, '/api/rc/connectors', { op: 'connection' });
+  assert.deepEqual(await response.json(), { status: 'missing', connectUrl: null });
 });
 
 test('CRM reports a per-user Granola connection and where to link it', async () => {
   connection = { status: 'consent_required', credential_mode: 'per_user', linked: true,
     consented: false, connect_url: 'https://acme.example/connect/granola?app=crm' };
-  let response = await post(apps.crm, '/api/rc/connectors', { op: 'connection' });
+  const response = await post(apps.crm, '/api/rc/connectors', { op: 'connection' });
   assert.deepEqual(await response.json(),
     { status: 'consent_required', connectUrl: 'https://acme.example/connect/granola?app=crm' });
-  assert.equal(calls.at(-1).path, '/service-connectors/granola/connection');
   assert.equal(await granola.isGranolaConnected(), false);
-  connection = { status: 'ready', credential_mode: 'shared', linked: true, consented: true, connect_url: null };
+  connection = { status: 'ready', credential_mode: 'per_user', linked: true, consented: true, connect_url: null };
   assert.equal(await granola.isGranolaConnected(), true);
-  // Declared but not deployed (railcode dev): the connector list decides.
-  connection = null;
-  response = await post(apps.crm, '/api/rc/connectors', { op: 'connection' });
-  assert.deepEqual(await response.json(), { status: 'ready', connectUrl: null });
-  connectorList = [];
-  response = await post(apps.crm, '/api/rc/connectors', { op: 'connection' });
-  assert.deepEqual(await response.json(), { status: 'missing', connectUrl: null });
 });
 
 test('Kanban rejects an attachment belonging to another card without changing either', async () => {

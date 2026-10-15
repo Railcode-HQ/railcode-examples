@@ -50,15 +50,8 @@ export type FileEntry = {
   updated_at?: string;
 };
 
-export type ConnectorInfo = {
-  name: string;
-  provider: string | null;
-  account_label: string | null;
-  has_tools: boolean;
-};
-
 export type ConnectorConnectionState = {
-  status: "ready" | "not_connected" | "linking" | "consent_required" | "missing";
+  status: "ready" | "not_connected" | "linking" | "consent_required" | "shared" | "missing";
   connectUrl: string | null;
 };
 
@@ -349,11 +342,9 @@ export const agents = {
 };
 
 // ── named connectors ─────────────────────────────────────────────────────────
-// Linking credentials happens in Railcode's dashboard or CLI, never in this app.
+// Granola only, and only as a per-user connector (see server/index.ts). Linking
+// happens on the platform's connect page, never in this app.
 export const connectors = {
-  list() {
-    return apiJson<ConnectorInfo[]>("/api/rc/connectors", { op: "list" });
-  },
   /** Whether the signed-in member can use Granola from here, and if not, the
    *  platform page that links their account or approves this app. */
   connection() {

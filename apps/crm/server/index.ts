@@ -17,7 +17,6 @@ import {
   llm,
   llmProviders,
   connector,
-  serviceConnectors,
   toNdjson,
   type LlmMessage,
   type LlmOptions,
@@ -180,43 +179,54 @@ app.post("/api/rc/agent", async (c) => {
 
 // ── connectors ───────────────────────────────────────────────────────────────
 // One named Granola connector. Change this name AND the manifest key when yours
-// is called something else (for example granola-alice). Either kind works with
-// the same code: a SHARED connector holds one account for everybody, while a
-// PER-USER connector calls out as whoever is signed in. For a per-user one,
-// `connection` reports whether this member still has to link their account or
-// approve this app, and where to send them to do it.
+// is called something else (for example granola-team).
+//
+// It MUST be a PER-USER connector (`railcode connector link granola --per-user`):
+// each call then goes out with the signed-in member's own Granola account, so a
+// member can only ever list and read their own meetings. A SHARED connector is
+// refused. It holds one person's account, and every member who can open the CRM
+// would be able to read all of that person's meetings and transcripts, not just
+// the ones imported here. Only what someone imports becomes shared.
 const GRANOLA_CONNECTOR = "granola";
 const GRANOLA_TOOLS = new Set(["list_meetings", "get_meetings", "get_meeting_transcript"]);
 
+type GranolaState =
+  | { status: "ready" | "not_connected" | "linking" | "consent_required"; connectUrl: string | null }
+  | { status: "shared" | "missing"; connectUrl: null };
+
+// Asked before every call, and it fails closed: anything other than a per-user
+// connector is "not usable". Under `railcode dev` this reads the DEPLOYED app's
+// manifest, so deploy once before Granola works locally.
+async function granolaState(): Promise<GranolaState> {
+  try {
+    const state = await connector(GRANOLA_CONNECTOR).connection();
+    if (state.credentialMode !== "per_user") return { status: "shared", connectUrl: null };
+    return { status: state.status, connectUrl: state.connectUrl };
+  } catch (err) {
+    // Not declared, not created yet, or withdrawn: setup to do.
+    if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
+      return { status: "missing", connectUrl: null };
+    }
+    throw err;
+  }
+}
+
 app.post("/api/rc/connectors", async (c) => {
   const body = (await c.req.json()) as {
-    op: "list" | "connection" | "call"; name?: string; tool?: string; args?: Record<string, unknown>;
+    op: "connection" | "call"; name?: string; tool?: string; args?: Record<string, unknown>;
   };
-  if (body.op === "connection") {
-    try {
-      const state = await connector(GRANOLA_CONNECTOR).connection();
-      return c.json({ status: state.status, connectUrl: state.connectUrl });
-    } catch (err) {
-      if (!(err instanceof ApiError) || (err.status !== 404 && err.status !== 403)) throw err;
-      // Under `railcode dev` this check reads the DEPLOYED app's manifest, so a
-      // connector declared locally but not deployed yet 404s here while its calls
-      // work. Trust the connector list then; a per-user call that still needs
-      // linking refuses with `connectionRequired`, which the page surfaces.
-      const listed = err.status === 404 &&
-        (await serviceConnectors()).some((row) => row.name === GRANOLA_CONNECTOR && row.has_tools);
-      // Otherwise it isn't declared, created yet, or it was withdrawn: setup to do.
-      return c.json({ status: listed ? "ready" : "missing", connectUrl: null });
-    }
-  }
-  if (body.op === "list") {
-    const rows = await serviceConnectors();
-    return c.json(rows.filter((row) => row.name === GRANOLA_CONNECTOR)
-      .map((row) => ({ ...row, name: "granola" })));
-  }
+  if (body.op === "connection") return c.json(await granolaState());
   if (body.op === "call") {
     if (body.name !== "granola" || !GRANOLA_TOOLS.has(body.tool ?? "")) {
       return c.json({ error: "connector tool not allowed" }, 403);
     }
+    const state = await granolaState();
+    if (state.status === "shared") {
+      return c.json({ error: "Granola must be a per-user connector for this app" }, 403);
+    }
+    if (state.status === "missing") return c.json({ error: "Granola is not set up" }, 404);
+    // A per-user call that still needs linking refuses with `connectionRequired`,
+    // relayed verbatim by onError.
     return c.json(await connector(GRANOLA_CONNECTOR).call(body.tool!, body.args ?? {}));
   }
   return c.json({ error: "unknown op" }, 400);

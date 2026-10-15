@@ -200,8 +200,12 @@ export const useGranolaStore = create<GranolaState>((set, get) => ({
         window.location.assign(url.toString());
         return;
       }
+      if (state.status === "shared") {
+        set({ step: "connect", error: "This CRM only reads Granola through a per-user connector, so nobody can see someone else's meetings. Ask your workspace admin to set Granola up as per-user in Railcode." });
+        return;
+      }
       if (state.status !== "ready") {
-        set({ step: "connect", error: "Granola is not available yet. Ask your workspace admin to add a Granola connector in Railcode, then check again." });
+        set({ step: "connect", error: "Granola is not available yet. Ask your workspace admin to add a per-user Granola connector in Railcode, then check again." });
         return;
       }
       // Connected — close the dialog and pull in whatever email-matches right away.

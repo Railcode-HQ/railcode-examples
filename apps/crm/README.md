@@ -18,24 +18,33 @@ to the real instance.
 
 ## Granola setup
 
-Create a Granola connector in the Railcode dashboard, or with
-`railcode connector link granola`. Then check it with `railcode connector list` and
-`railcode connector tools <name>`. If it isn't named `granola`, update both
-`GRANOLA_CONNECTOR` in `server/index.ts` and the key in `manifest.yaml`, then
-deploy. The worker exposes only the three declared meeting read tools.
+Granola must be a **per-user** connector:
 
-Both connector kinds work with the same code:
+```bash
+railcode connector link granola --per-user
+```
 
-- **Shared**: one account for everybody, linked by whoever set it up.
-- **Per-user** (`railcode connector link granola --per-user`): no account of its
-  own, and each member's calls go out with their own Granola account. When a member
-  clicks **Connect**, the worker's `connection` op reports whether they still have
-  to link their account or approve this app. If they do, the app sends them to the
-  platform's `connectUrl`, which handles both and returns them to the CRM.
+A per-user connector holds no account of its own. Each member's calls go out
+with their own Granola account, so a member can only list and read their own
+meetings. When someone clicks **Connect**, the worker's `connection` op reports
+whether they still have to link their account or approve this app. If they do,
+the app sends them to the platform's `connectUrl`, which handles both and returns
+them to the CRM.
 
-Either way, imported meetings are shared with everyone who can open the CRM. Google
-Calendar remains unwired and undeclared; enable it explicitly in both the worker
-policy and manifest when adding that source to a view.
+The worker **refuses a shared connector**. A shared one holds one person's
+account, and every member who can open the CRM could then read all of that
+person's meetings and transcripts, not just the ones imported here. Only what a
+member imports becomes shared with everyone who can open the CRM.
+
+If your connector isn't named `granola`, update both `GRANOLA_CONNECTOR` in
+`server/index.ts` and the key in `manifest.yaml`, then deploy. The worker exposes
+only the three declared meeting read tools. Under `railcode dev` the connection
+check reads the deployed app's manifest, so deploy once before Granola works
+locally.
+
+Google Calendar remains unwired and undeclared. Enable it explicitly in both the
+worker policy and the manifest when adding that source to a view, and call it
+the same way, as a per-user connector only.
 
 ## Structure
 
@@ -161,7 +170,7 @@ object, which only worked while there was exactly one automation.
 Four ideas carry the feature:
 
 - **The app owns triggering; the agent owns the sandbox.** The app reads Granola
-  (the named connector configured for this shared CRM), mints every id, uploads every input file, and calls `agents.start`.
+  (as the signed-in member, through a per-user connector), mints every id, uploads every input file, and calls `agents.start`.
   The agent renders the document in a code sandbox and writes the `artifacts`,
   `activities` and `automationRuns` records back itself — into the app's own flat
   store, which on v2 IS the scope an org agent's `app_data_write` lands in. That
