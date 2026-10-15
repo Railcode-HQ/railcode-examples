@@ -21,6 +21,7 @@ import {
   messagePrefix,
   ownedBy,
   prefsKey,
+  safeId,
 } from "./keys";
 import type {
   Attachment,
@@ -197,7 +198,7 @@ app.delete("/api/attachments/:id", async (c) => {
 app.post("/api/attachments/urls", async (c) => {
   const user = caller();
   const body = (await c.req.json().catch(() => ({}))) as { ids?: unknown };
-  const ids = Array.isArray(body.ids) ? body.ids.map(String).slice(0, 100) : [];
+  const ids = Array.isArray(body.ids) ? body.ids.map(safeId).slice(0, 100) : [];
   if (ids.length === 0) return c.json({ urls: {} });
   try {
     const batch = await files.urls(ids.map((id) => attachmentName(user.id, id)));
@@ -233,8 +234,9 @@ app.post("/api/chat", async (c) => {
   const body = (await c.req.json()) as ChatRequest;
   const question = String(body.question ?? "").trim();
   const attachments: Attachment[] = Array.isArray(body.attachments) ? body.attachments : [];
-  const convId = String(body.convId ?? "");
-  if (!convId) return c.json({ error: "convId required" }, 400);
+  const convId = safeId(body.convId);
+  // Reject poisoned metadata before persisting it or starting the model.
+  for (const attachment of attachments) safeId(attachment?.id);
   if (!question && attachments.length === 0) return c.json({ error: "empty turn" }, 400);
 
   const now = new Date().toISOString();

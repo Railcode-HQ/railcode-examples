@@ -10,7 +10,7 @@ one unit by the Railcode CLI.
 | [`apps/chat`](apps/chat) | A chat interface over your connected data sources (Postgres text-to-SQL, PostHog HogQL). | The agent loop running server-side and streaming ndjson to the page; per-user isolation rebuilt as keys plus an owner check; batched file URLs with a fallback. |
 | [`apps/crm`](apps/crm) | A full CRM — companies, contacts, pipeline, activity, automations — with an **Ask AI** agent that can read and change anything a person could. | A 20k-line v1 app ported through ONE module; the tool loop that had to stay in the browser because its writes wait for a human; managed agents deployed alongside an app. |
 | [`agents/pitch-deck`](agents/pitch-deck) | An app for uploading company materials, paired with an agent that writes a polished pitch-deck PDF from them. | `agents.start()` + poll, because a worker cannot hold a minutes-long run open; a run that reattaches after a refresh; agent output arriving in the app's own store with no bridge. |
-| [`agents/proposals`](agents/proposals) | An agent that watches your Granola meetings on a 30-minute cron and drafts an editable `.docx` proposal whenever a call clearly ended with "send us a proposal", paired with an app that just displays them. | Why the schedule belongs to the AGENT and not the app (cron has no caller, so it cannot start a run); an in-flight run that is visible to everyone but readable only by its owner. |
+| [`agents/proposals`](agents/proposals) | An agent that watches your Granola meetings on a 30-minute cron and drafts an editable `.docx` proposal whenever a call clearly ended with "send us a proposal", paired with an app that just displays them. | Why the schedule belongs to the AGENT and not the app (cron has no caller, so it cannot start a run); a scheduled org agent writing shared records/files, with scheduler-enforced overlap prevention. |
 
 Apps live under `apps/`; the `agents/` examples pair an app with a managed
 agent, because agents can't own files or storage directly — they work through an
@@ -59,6 +59,22 @@ railcode deploy
 Open the URL `railcode dev` prints, **not** the raw Vite URL — the worker only
 exists behind the dev proxy, so `/api/*` 404s on the bare Vite server.
 
-These examples target `@railcode/sdk` 0.3.0 and the `railcode` CLI 0.2.2. No app
-here commits a lockfile: they are templates to copy, and a pinned dependency
-tree is the part you least want to inherit.
+These examples target `@railcode/sdk` 0.5.0 and the `railcode` CLI 0.3.9.
+The agent companion apps include npm lockfiles; use `npm ci` there for the
+validated dependency tree. Plain app templates use their declared version ranges.
+
+## Regression checks
+
+Install each example's dependencies first, then run the repository tests:
+
+```bash
+npm ci
+npm test
+```
+
+The suite bundles all five workers and exercises their routes through the real
+SDK with a mocked platform. It tests privacy, path validation, connector policy,
+attachment deletion and the scheduled proposal workflow without live calls.
+Run `npm run check`, `npx vite build`, and `railcode manifest validate` from
+each example as well. The root esbuild dependency is only for this test harness;
+Railcode still owns each app's production worker build.

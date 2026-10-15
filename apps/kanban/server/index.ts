@@ -198,6 +198,9 @@ app.delete("/api/cards/:id/attachments/:attachmentId", async (c) => {
   const card = await findCard(c.req.param("id"));
   if (!card) return c.json({ error: "not found" }, 404);
   const attachmentId = c.req.param("attachmentId");
+  if (!card.attachments.some((attachment) => attachment.id === attachmentId)) {
+    return c.json({ error: "not found" }, 404);
+  }
   const next: Card = {
     ...card,
     attachments: card.attachments.filter((a) => a.id !== attachmentId),

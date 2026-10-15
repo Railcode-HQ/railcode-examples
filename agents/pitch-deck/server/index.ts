@@ -7,9 +7,8 @@
 // budget and a token that expires — so the worker never waits for it.
 //
 // Instead: start the run, hand the browser a request_id, and let the browser
-// poll. `agents.invoke()` exists for short runs and polls for you, but it
-// throws AgentRunPending at its deadline, and a deck run would hit that
-// deadline every time.
+// poll. The worker SDK deliberately provides only start/get; waiting for a
+// minutes-long run inside a worker invocation would exhaust its budget.
 import { Hono } from "hono";
 import { ApiError, agents, ctx, db, files } from "@railcode/sdk";
 

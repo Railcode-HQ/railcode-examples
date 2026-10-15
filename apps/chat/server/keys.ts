@@ -17,14 +17,23 @@
 // correctly in testing, and any member who can guess another member's id can
 // read their entire chat history.
 
-import type { RailcodeUser } from "@railcode/sdk";
+import { ApiError, type RailcodeUser } from "@railcode/sdk";
+
+// These identifiers become URL path segments in the SDK. Validate BEFORE URL
+// construction: a URL normalizes dot segments before the storage API sees them.
+export function safeId(value: unknown): string {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) {
+    throw new ApiError(400, JSON.stringify({ error: "invalid id" }));
+  }
+  return value;
+}
 
 /** Anything this app stores for one person. */
 export interface Owned {
   owner: string;
 }
 
-export const conversationKey = (userId: string, convId: string) => `${userId}:${convId}`;
+export const conversationKey = (userId: string, convId: string) => `${userId}:${safeId(convId)}`;
 
 /** Message keys are `${userId}:${convId}:${zero-padded seq}:${id}`.
  *
@@ -34,9 +43,9 @@ export const conversationKey = (userId: string, convId: string) => `${userId}:${
  *  nothing has to be sorted afterwards. This is the one decision here that is
  *  expensive to change once data exists. */
 export const messageKey = (userId: string, convId: string, seq: number, id: string) =>
-  `${userId}:${convId}:${String(seq).padStart(6, "0")}:${id}`;
+  `${userId}:${safeId(convId)}:${String(seq).padStart(6, "0")}:${id}`;
 
-export const messagePrefix = (userId: string, convId: string) => `${userId}:${convId}:`;
+export const messagePrefix = (userId: string, convId: string) => `${userId}:${safeId(convId)}:`;
 
 export const conversationPrefix = (userId: string) => `${userId}:`;
 
@@ -46,7 +55,7 @@ export const prefsKey = (userId: string) => userId;
  *  request — a browser that could name the key could read anyone's uploads.
  *  (`users/` and `roles/` are reserved top-level names, hence `attachments/`.) */
 export const attachmentName = (userId: string, attachmentId: string) =>
-  `attachments/${userId}/${attachmentId}`;
+  `attachments/${userId}/${safeId(attachmentId)}`;
 
 /** The fence. Returns the record only when it really belongs to the caller.
  *

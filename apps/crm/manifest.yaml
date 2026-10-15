@@ -21,13 +21,11 @@ llm: true
 # from the worker, whatever grants the deployer holds.
 agents: [crm-artifact-writer, crm-style-measurer]
 
-# The CALLER's own connected accounts, never the org's. Every personal-connector
-# call the worker makes acts as ctx.user, so a cron invocation could not make one
-# at all (409, no caller) — this app has no crons for that reason among others.
-#
-# Only Granola is declared, because only Granola is wired into the app. The
-# Google Calendar source in lib/gcal.ts is present but not yet connected to a
-# view; declaring `google_calendar:*` before then would be authority the app does
-# not use. Add it when the meeting triage starts reading the calendar.
-personal_connectors:
-  - granola:*
+# A named Granola account whose imported meetings are shared with this CRM.
+# Link it in the Railcode dashboard/CLI first. If its name is suffixed, update
+# this key and GRANOLA_CONNECTOR in server/index.ts together.
+connectors:
+  granola:
+    - list_meetings
+    - get_meetings
+    - get_meeting_transcript

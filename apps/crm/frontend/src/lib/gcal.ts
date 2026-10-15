@@ -1,4 +1,4 @@
-// Google Calendar integration: personal-connector calls and event parsing.
+// Google Calendar integration: named-connector calls and event parsing.
 //
 // Granola knows what was SAID; the calendar knows what was SCHEDULED. The second
 // is the weaker signal and a much wider net — every standup and every dentist
@@ -6,13 +6,13 @@
 // call with a new prospect on it before anyone has written a word about them.
 // See `lib/meetings.ts` for how the two are merged.
 
-import { connectToolkit, isToolkitConnected } from "@/lib/connect";
+import { isToolkitConnected } from "@/lib/connect";
 import type { MeetingDetail, MeetingStub } from "@/lib/meetings";
-import { personalConnections } from "@/lib/railcode";
+import { connectors } from "@/lib/railcode";
 
 export const GCAL_TOOLKIT = "google_calendar";
 
-/** The viewer's own default calendar. Shared and secondary ones are out of scope. */
+/** The configured account's default calendar. Shared and secondary ones are out of scope. */
 const CALENDAR_ID = "primary";
 
 /** Cap on one listing. The triage window is a week, so this is generous. */
@@ -53,7 +53,7 @@ function parseMaybeJson(text: string): unknown {
 }
 
 /**
- * `personalConnections.call()` answers with MCP-style content: an array of
+ * `connectors.call()` answers with MCP-style content: an array of
  * blocks like `[{ type: "text", text: "<stringified JSON>" }]`. Unwrap to the
  * payload, staying tolerant of an envelope that's already an object — the
  * toolkit layer has changed this shape before.
@@ -212,11 +212,6 @@ export function isGcalConnected(): Promise<boolean> {
   return isToolkitConnected(GCAL_TOOLKIT);
 }
 
-/** Opens the provider's OAuth URL; caller is responsible for popup handling. */
-export function connectGcal(): Promise<string> {
-  return connectToolkit(GCAL_TOOLKIT);
-}
-
 /**
  * Meetings from the last `sinceDays` days that have already finished, newest first.
  *
@@ -229,7 +224,7 @@ export async function listRecentEvents(sinceDays: number): Promise<MeetingStub[]
   const now = new Date();
   const timeMin = new Date(now.getTime() - sinceDays * 24 * 60 * 60 * 1000);
 
-  const { result } = await personalConnections.call(GCAL_TOOLKIT, "list_events", {
+  const result = await connectors.call(GCAL_TOOLKIT, "list_events", {
     calendarId: CALENDAR_ID,
     timeMin: timeMin.toISOString(),
     timeMax: now.toISOString(),
@@ -253,7 +248,7 @@ export async function listRecentEvents(sinceDays: number): Promise<MeetingStub[]
  * which is the only prose the calendar ever has.
  */
 export async function fetchEventDetail(stub: MeetingStub): Promise<MeetingDetail> {
-  const { result } = await personalConnections.call(GCAL_TOOLKIT, "get_event", {
+  const result = await connectors.call(GCAL_TOOLKIT, "get_event", {
     calendarId: CALENDAR_ID,
     eventId: stub.id,
   });

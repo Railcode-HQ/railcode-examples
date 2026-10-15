@@ -4,7 +4,7 @@ import { CallNote, cleanError, nowIso } from "@/lib/crm";
 import {
   GRANOLA_MAX_IMPORT_PER_SYNC,
   GranolaMeetingStub,
-  connectGranola,
+  granolaConnection,
   fetchMeetingDetailResilient,
   fetchMeetingTranscript,
   isGranolaConnected,
@@ -62,7 +62,6 @@ type GranolaState = {
   progress: { current: number; total: number; label: string };
   manualItems: GranolaManualItem[];
   summary?: { saved: number; skipped: number };
-  connectPopup: Window | null;
   /** Bumped on every load/close so a stale in-flight run stops writing state. */
   syncToken: number;
 
@@ -78,18 +77,6 @@ type GranolaState = {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForConnection(popup: Window | null): Promise<boolean> {
-  const timeoutMs = 180_000;
-  const intervalMs = 1500;
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    await sleep(intervalMs);
-    if (await isGranolaConnected()) return true;
-    if (popup?.closed) return isGranolaConnected();
-  }
-  return false;
 }
 
 /**
@@ -181,14 +168,13 @@ export const useGranolaStore = create<GranolaState>((set, get) => ({
   step: "connect",
   progress: { current: 0, total: 0, label: "" },
   manualItems: [],
-  connectPopup: null,
   syncToken: 0,
 
   async checkConnection() {
     try {
       set({ connected: await isGranolaConnected() });
     } catch {
-      // SDK unavailable or personal connectors disabled — treat as not connected.
+      // Connector unavailable — the setup dialog explains the next step.
       set({ connected: false });
     }
   },
@@ -198,27 +184,31 @@ export const useGranolaStore = create<GranolaState>((set, get) => ({
   },
 
   closeModal() {
-    get().connectPopup?.close();
-    set((s) => ({ modalOpen: false, connectPopup: null, syncToken: s.syncToken + 1 }));
+    set((s) => ({ modalOpen: false, syncToken: s.syncToken + 1 }));
   },
 
   async connect() {
     set({ step: "connecting", error: undefined });
     try {
-      const redirectUrl = await connectGranola();
-      const popup = window.open(redirectUrl, "_blank", "width=520,height=680");
-      set({ connectPopup: popup });
-      const connected = await waitForConnection(popup);
-      set({ connectPopup: null });
-      if (!connected) {
-        set({ step: "connect", error: "Didn't finish connecting — try again." });
+      const state = await granolaConnection();
+      if (state.status !== "ready" && state.connectUrl) {
+        // A per-user connector this member hasn't linked (or hasn't let this app
+        // use). The platform page does both, then sends them back here, where the
+        // load-time check finds the connection.
+        const url = new URL(state.connectUrl);
+        url.searchParams.set("return_to", window.location.href);
+        window.location.assign(url.toString());
+        return;
+      }
+      if (state.status !== "ready") {
+        set({ step: "connect", error: "Granola is not available yet. Ask your workspace admin to add a Granola connector in Railcode, then check again." });
         return;
       }
       // Connected — close the dialog and pull in whatever email-matches right away.
       set({ connected: true, modalOpen: false });
       void get().autoSync({ silent: true });
     } catch (error) {
-      set({ step: "connect", error: cleanError(error), connectPopup: null });
+      set({ step: "connect", error: cleanError(error) });
     }
   },
 

@@ -50,16 +50,16 @@ export type FileEntry = {
   updated_at?: string;
 };
 
-export type PersonalConnectionStatus = {
-  uuid: string;
-  toolkit: string;
-  status: string;
-  created_at?: string;
-  updated_at?: string;
+export type ConnectorInfo = {
+  name: string;
+  provider: string | null;
+  account_label: string | null;
+  has_tools: boolean;
 };
 
-export type PersonalConnectionCall = {
-  result: unknown;
+export type ConnectorConnectionState = {
+  status: "ready" | "not_connected" | "linking" | "consent_required" | "missing";
+  connectUrl: string | null;
 };
 
 export type LlmMessage = {
@@ -331,10 +331,9 @@ export const agents = {
 
   /** Start a run and resolve with the finished one.
    *
-   *  The polling moved into the BROWSER. The SDK does offer `agents.invoke()`,
-   *  but it spends one of the invocation's subrequests per poll and throws at a
-   *  60-second deadline, so a worker route wrapping it would time out on a run
-   *  the model spends minutes on. The page has no such budget: it can wait, and
+   *  The polling stays in the BROWSER. The worker SDK exposes only start/get;
+   *  waiting inside a worker would spend its limited subrequest budget.
+   *  The page has no such budget: it can wait, and
    *  it keeps waiting across a slow run without holding anything open server-side.
    *
    *  Callers that must survive a closed tab should use `start` and persist the
@@ -349,28 +348,19 @@ export const agents = {
   },
 };
 
-// ── personal connectors ──────────────────────────────────────────────────────
-
-export const personalConnections = {
+// ── named connectors ─────────────────────────────────────────────────────────
+// Linking credentials happens in Railcode's dashboard or CLI, never in this app.
+export const connectors = {
   list() {
-    return apiJson<PersonalConnectionStatus[]>("/api/rc/pc", { op: "list" });
+    return apiJson<ConnectorInfo[]>("/api/rc/connectors", { op: "list" });
   },
-  connect(toolkit: string) {
-    return apiJson<{ redirect_url?: string; mode?: string }>("/api/rc/pc", {
-      op: "connect",
-      toolkit,
-    });
+  /** Whether the signed-in member can use Granola from here, and if not, the
+   *  platform page that links their account or approves this app. */
+  connection() {
+    return apiJson<ConnectorConnectionState>("/api/rc/connectors", { op: "connection" });
   },
-  tools(toolkit: string) {
-    return apiJson<unknown[]>("/api/rc/pc", { op: "tools", toolkit });
-  },
-  call(toolkit: string, tool: string, args?: Record<string, unknown>) {
-    return apiJson<PersonalConnectionCall>("/api/rc/pc", {
-      op: "call",
-      toolkit,
-      tool,
-      args: args ?? {},
-    });
+  call(name: string, tool: string, args: Record<string, unknown> = {}) {
+    return apiJson<unknown>("/api/rc/connectors", { op: "call", name, tool, args });
   },
 };
 

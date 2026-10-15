@@ -5,8 +5,8 @@ import { ContactMultiSelect } from "@/components/ContactMultiSelect";
 import { GranolaManualItem, GranolaStep, useGranolaStore } from "@/store/granola-store";
 
 const SUBTITLES: Record<GranolaStep, string> = {
-  connect: "Connect your account",
-  connecting: "Connecting…",
+  connect: "Workspace connection",
+  connecting: "Checking connection…",
   manualLoading: "Loading meetings",
   manual: "Import meetings",
   importing: "Importing",
@@ -49,15 +49,15 @@ export function GranolaModal() {
 
           {step === "connect" ? (
             <Intro
-              title="Connect your Granola account"
-              body="Import your meeting notes and attach them to the people in your CRM."
+              title="Connect Granola"
+              body="Import meeting notes and attach them to the people in your CRM. If your workspace gives everyone their own Granola connection, you'll be asked to link your account. Imported meetings are shared with everyone who can use the CRM."
               action="Connect"
               onAction={connect}
             />
           ) : null}
 
           {step === "connecting" ? (
-            <Intro spinning body="Waiting for you to finish connecting in the popup window…" />
+            <Intro spinning body="Checking whether Granola is available…" />
           ) : null}
 
           {step === "manualLoading" ? (

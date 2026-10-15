@@ -16,7 +16,8 @@ import {
   files,
   llm,
   llmProviders,
-  personalConnections,
+  connector,
+  serviceConnectors,
   toNdjson,
   type LlmMessage,
   type LlmOptions,
@@ -33,7 +34,7 @@ const caller = () => ctx.user!;
 
 // Relay the platform's status and body verbatim. The browser wrapper rebuilds an
 // ApiError from them, so every `.status` check written against v1 keeps working
-// across the extra hop: 403 "not authorized", 409 "connect your account",
+// across the extra hop: 403 "not authorized", 409 "conflict",
 // 429 "rate limited".
 app.onError((err) => {
   if (err instanceof ApiError) {
@@ -52,14 +53,15 @@ app.onError((err) => {
 app.get("/api/rc/me", (c) => c.json({ user: caller() }));
 
 // ── kv ───────────────────────────────────────────────────────────────────────
-// One route for the whole store, because the browser wrapper is one Collection
-// shape. `mine: true` is the old db.user: the worker prefixes the key with the
-// verified caller's id AND stamps the record, then refuses to return one whose
-// owner is somebody else.
-//
-// The prefix on its own would only be an index. The owner check is the fence,
-// and leaving it out is the classic v1→v2 porting bug — it looks isolated right
-// up until someone guesses another member's id.
+// The worker decides privacy by collection, never by a request flag. Unknown
+// collections are refused so a new private collection cannot silently be shared.
+const SHARED_COLLECTIONS = new Set([
+  "companies", "contacts", "deals", "activities", "callNotes", "actionItems",
+  "callTranscripts", "automations", "automationSettings", "artifacts",
+  "automationRuns", "meetingTriage",
+]);
+const PRIVATE_COLLECTIONS = new Set(["notifRead"]);
+
 interface Owned {
   __owner?: string;
 }
@@ -73,7 +75,16 @@ app.post("/api/rc/kv", async (c) => {
     value?: unknown;
     mine?: boolean;
   };
-  const mine = Boolean(body.mine);
+  if (!PRIVATE_COLLECTIONS.has(body.collection) && !SHARED_COLLECTIONS.has(body.collection)) {
+    return c.json({ error: "unknown collection" }, 400);
+  }
+  const mine = PRIVATE_COLLECTIONS.has(body.collection);
+  // Slash/dot segments must never reach the SDK's URL builder. Colons remain
+  // valid for legacy shared keys; a private key is always prefixed here.
+  if (body.op !== "list" && (typeof body.key !== "string" || !body.key ||
+      body.key.length > 200 || /[\/\\]/.test(body.key) || body.key === "." || body.key === "..")) {
+    return c.json({ error: "invalid key" }, 400);
+  }
   const store = db.collection<Owned & Record<string, unknown>>(body.collection);
   const scoped = (key: string) => (mine ? `${user.id}:${key}` : key);
 
@@ -167,33 +178,48 @@ app.post("/api/rc/agent", async (c) => {
   return c.json({ error: "unknown op" }, 400);
 });
 
-// ── personal connectors ──────────────────────────────────────────────────────
-// The caller's OWN connected accounts (Granola, Google Calendar), never the
-// org's. Every call here acts as ctx.user, and the manifest's
-// `personal_connectors:` is the bound on which of their accounts this app may
-// drive — undeclared is a 403, unconnected is a 409 the UI turns into a
-// "Connect your account" prompt.
-app.post("/api/rc/pc", async (c) => {
+// ── connectors ───────────────────────────────────────────────────────────────
+// One named Granola connector. Change this name AND the manifest key when yours
+// is called something else (for example granola-alice). Either kind works with
+// the same code: a SHARED connector holds one account for everybody, while a
+// PER-USER connector calls out as whoever is signed in. For a per-user one,
+// `connection` reports whether this member still has to link their account or
+// approve this app, and where to send them to do it.
+const GRANOLA_CONNECTOR = "granola";
+const GRANOLA_TOOLS = new Set(["list_meetings", "get_meetings", "get_meeting_transcript"]);
+
+app.post("/api/rc/connectors", async (c) => {
   const body = (await c.req.json()) as {
-    op: "list" | "connect" | "tools" | "call";
-    toolkit?: string;
-    tool?: string;
-    args?: Record<string, unknown>;
+    op: "list" | "connection" | "call"; name?: string; tool?: string; args?: Record<string, unknown>;
   };
-  switch (body.op) {
-    case "list":
-      return c.json(await personalConnections.list());
-    case "connect":
-      return c.json(await personalConnections.connect(String(body.toolkit)));
-    case "tools":
-      return c.json(await personalConnections.tools(String(body.toolkit)));
-    case "call":
-      return c.json(
-        await personalConnections.call(String(body.toolkit), String(body.tool), body.args ?? {}),
-      );
-    default:
-      return c.json({ error: "unknown op" }, 400);
+  if (body.op === "connection") {
+    try {
+      const state = await connector(GRANOLA_CONNECTOR).connection();
+      return c.json({ status: state.status, connectUrl: state.connectUrl });
+    } catch (err) {
+      if (!(err instanceof ApiError) || (err.status !== 404 && err.status !== 403)) throw err;
+      // Under `railcode dev` this check reads the DEPLOYED app's manifest, so a
+      // connector declared locally but not deployed yet 404s here while its calls
+      // work. Trust the connector list then; a per-user call that still needs
+      // linking refuses with `connectionRequired`, which the page surfaces.
+      const listed = err.status === 404 &&
+        (await serviceConnectors()).some((row) => row.name === GRANOLA_CONNECTOR && row.has_tools);
+      // Otherwise it isn't declared, created yet, or it was withdrawn: setup to do.
+      return c.json({ status: listed ? "ready" : "missing", connectUrl: null });
+    }
   }
+  if (body.op === "list") {
+    const rows = await serviceConnectors();
+    return c.json(rows.filter((row) => row.name === GRANOLA_CONNECTOR)
+      .map((row) => ({ ...row, name: "granola" })));
+  }
+  if (body.op === "call") {
+    if (body.name !== "granola" || !GRANOLA_TOOLS.has(body.tool ?? "")) {
+      return c.json({ error: "connector tool not allowed" }, 403);
+    }
+    return c.json(await connector(GRANOLA_CONNECTOR).call(body.tool!, body.args ?? {}));
+  }
+  return c.json({ error: "unknown op" }, 400);
 });
 
 // ── llm ──────────────────────────────────────────────────────────────────────

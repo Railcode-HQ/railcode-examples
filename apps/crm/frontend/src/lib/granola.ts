@@ -1,7 +1,7 @@
-// Granola integration: personal-connector calls, response parsing, and
+// Granola integration: named-connector calls, response parsing, and
 // deterministic email-based contact matching.
 
-import { personalConnections } from "@/lib/railcode";
+import { connectors } from "@/lib/railcode";
 
 export const GRANOLA_TOOLKIT = "granola";
 export const GRANOLA_LOGO_NAME = "Granola";
@@ -64,7 +64,8 @@ function collectText(result: unknown): string {
   // accept either rather than assuming one.
   const items = Array.isArray(result)
     ? result
-    : (result as { data?: unknown[] } | undefined)?.data;
+    : (result as { content?: unknown[]; data?: unknown[] } | undefined)?.content
+      ?? (result as { data?: unknown[] } | undefined)?.data;
   if (!Array.isArray(items)) return "";
   return (items as { text?: string }[]).map((d) => d?.text ?? "").join("\n");
 }
@@ -110,36 +111,25 @@ function parseDetail(text: string): GranolaMeetingDetail | undefined {
   };
 }
 
-export async function isGranolaConnected(): Promise<boolean> {
-  const connections = await personalConnections.list();
-  return connections.some((c) => c.toolkit === GRANOLA_TOOLKIT && c.status === "active");
+export function granolaConnection() {
+  return connectors.connection();
 }
 
-/** Opens the provider's OAuth URL; caller is responsible for popup handling. */
-export async function connectGranola(): Promise<string> {
-  const { redirect_url } = await personalConnections.connect(GRANOLA_TOOLKIT);
-  // A "token" connector authenticates with a pasted key, which an app cannot
-  // securely collect — there is no URL to open, and the user links it from the
-  // Railcode console instead.
-  if (!redirect_url) {
-    throw new Error(
-      "This connector is linked from the Railcode console rather than through the app.",
-    );
-  }
-  return redirect_url;
+export async function isGranolaConnected(): Promise<boolean> {
+  return (await granolaConnection()).status === "ready";
 }
 
 export async function listRecentMeetings(): Promise<GranolaMeetingStub[]> {
   // The toolkit's declared schema advertises a "custom" time_range, but the live
   // tool only accepts these three fixed windows — "custom" 400s at call time.
-  const { result } = await personalConnections.call(GRANOLA_TOOLKIT, "list_meetings", {
+  const result = await connectors.call(GRANOLA_TOOLKIT, "list_meetings", {
     time_range: "last_30_days",
   });
   return parseStubs(extractText(result)).sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
 export async function fetchMeetingDetail(meetingId: string): Promise<GranolaMeetingDetail> {
-  const { result } = await personalConnections.call(GRANOLA_TOOLKIT, "get_meetings", {
+  const result = await connectors.call(GRANOLA_TOOLKIT, "get_meetings", {
     meeting_ids: [meetingId],
   });
   const detail = parseDetail(extractText(result));
@@ -188,7 +178,7 @@ export async function fetchMeetingTranscript(
 ): Promise<GranolaTranscriptResult> {
   let raw: string;
   try {
-    const { result } = await personalConnections.call(
+    const result = await connectors.call(
       GRANOLA_TOOLKIT,
       "get_meeting_transcript",
       { meeting_id: meetingId },

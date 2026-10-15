@@ -1,8 +1,7 @@
 import { create } from "zustand";
 
 import { cleanError } from "@/lib/crm";
-import { waitForConnection } from "@/lib/connect";
-import { GCAL_TOOLKIT, connectGcal, isGcalConnected } from "@/lib/gcal";
+import { isGcalConnected } from "@/lib/gcal";
 import { useTriageStore } from "@/store/triage-store";
 
 /**
@@ -33,7 +32,7 @@ export const useGcalStore = create<GcalState>((set, get) => ({
     try {
       set({ connected: await isGcalConnected() });
     } catch {
-      // SDK unavailable or personal connectors disabled — treat as not connected.
+      // Connector unavailable — treat as not connected.
       set({ connected: false });
     }
   },
@@ -41,13 +40,11 @@ export const useGcalStore = create<GcalState>((set, get) => ({
   async connect() {
     if (get().connecting) return;
     set({ connecting: true, error: undefined });
-    let popup: Window | null = null;
     try {
-      popup = window.open(await connectGcal(), "_blank", "width=520,height=680");
-      const connected = await waitForConnection(GCAL_TOOLKIT, popup);
+      const connected = await isGcalConnected();
       set({ connecting: false, connected });
       if (!connected) {
-        set({ error: "Didn't finish connecting to Google Calendar — try again." });
+        set({ error: "Google Calendar is not configured for this app. Ask your workspace admin to set it up in Railcode." });
         return;
       }
       // Connected: pull the last week in straight away, so the section the user
@@ -55,8 +52,6 @@ export const useGcalStore = create<GcalState>((set, get) => ({
       void useTriageStore.getState().refresh();
     } catch (error) {
       set({ connecting: false, error: cleanError(error) });
-    } finally {
-      popup?.close();
     }
   },
 

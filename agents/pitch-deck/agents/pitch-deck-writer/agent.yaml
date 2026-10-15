@@ -14,7 +14,6 @@ tools:
   connectors: {}
   saved_queries: []
   app_data_write: [pitch-deck]
-  personal_connectors: []
 
 limits:
   max_steps: 40
@@ -22,14 +21,6 @@ limits:
   max_tokens_turn: 8192
   timeout_seconds: 300
   max_tokens_total: 200000
-
-input_schema:
-  type: object
-  properties:
-    context:
-      type: string
-      description: "Optional extra instructions or focus for this specific version (may be empty)."
-  additionalProperties: true
 
 system: |-
   You write investor pitch decks as polished PDFs for the 'pitch-deck' app, using its stored reference materials plus optional extra context given per run.

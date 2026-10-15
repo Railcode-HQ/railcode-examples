@@ -2,7 +2,7 @@
  *
  *  Only the conversation id, and only because the worker stores conversations
  *  under `${callerId}:${convId}` — so a client-chosen convId can never reach
- *  another member's row, whatever it contains. Message ids and attachment
+ *  another member's row after the worker validates its safe character set. Message ids and attachment
  *  storage names are minted by the worker, because those DO decide where bytes
  *  land. The rule is: the caller may pick a name inside their own space, never
  *  the space. */

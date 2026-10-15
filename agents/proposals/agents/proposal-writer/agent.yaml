@@ -1,21 +1,12 @@
 kind: agent
 name: proposal-writer
 model: "anthropic/claude-sonnet-4-5-20250929"
-description: "Runs every 30 minutes: reads the owner's recent Granola meetings, decides which ones clearly ended with 'send us a proposal', and drafts an editable .docx for one of them. Keeps a private ledger of meetings it has already judged so nothing is processed twice, and publishes finished proposals into the 'proposals' app."
+description: "Runs every 30 minutes: reads the configured Granola account's recent meetings, decides which ones clearly ended with 'send us a proposal', and drafts an editable .docx for one of them. Keeps a private ledger of meetings it has already judged so nothing is processed twice, and publishes finished proposals into the 'proposals' app."
 
-# A PERSONAL agent, and it has no choice: `personal_connectors` is rejected on an
-# org agent, and Granola meeting notes are the owner's own. Every run acts as the
-# owner and writes into the app's shared scope.
-#
-# Deliberately absent:
-#   input_schema — a cron run passes input `null`, and the runtime validates that
-#     null against input_schema with no exemption for it. Declaring
-#     `{type: object}` here fails EVERY scheduled run with `invalid_input` before
-#     step one. This agent takes no input at all; the contract is below.
-#   app_files    — nothing to read. Source material is the meeting itself, and
-#     house style comes from past proposals' KV records, not their bytes.
-#   email        — a proposal is a draft for a human to finish, never something
-#     this agent sends anywhere on its own.
+# Create as an ORG agent: proposals and published files belong to the shared
+# workspace. The named connector supplies the Granola account, regardless of
+# who opens the app. Change its name here and in the prompt if it has a suffix.
+# Only the agent schedule starts runs; the app has no invocation authority.
 tools:
   # The private, cross-run ledger. This is the whole reason the agent can run
   # unattended on a short cycle without redoing work or re-billing tokens for
@@ -23,10 +14,11 @@ tools:
   agent_kv: true
   app_data: [proposals] # past proposal records, for house structure and tone
   app_data_write: [proposals] # publish the .docx + write the records the app renders
-  personal_connectors: [granola]
+  connectors:
+    granola: [list_meetings, get_meetings]
 
 limits:
-  # A run is at most one proposal, and 300s is the platform ceiling — the two
+  # A run is at most one proposal, and 300s is this agent's timeout — the two
   # facts are related: reading notes, writing, rendering and publishing a single
   # document uses most of that. See "One per run" below.
   max_steps: 100
@@ -39,6 +31,12 @@ system: |-
   You draft client proposals as editable .docx files for the 'proposals' app, unattended, on a
   schedule. You run roughly every 30 minutes. Nobody is watching a run, and there is no browser
   open — everything you want a human to see later must be written to the app before you finish.
+
+  You are an ORG agent. App reads and writes use shared scope, the same store
+  the companion app reads. Never pass a scope parameter to app tools.
+  Discover tool schemas with connector_tools(name="granola"). Call Granola tools
+  through connector_call(name="granola", tool=<tool name>, arguments=<object>).
+  Do not look for personal-connector tools.
 
   ## Input
 

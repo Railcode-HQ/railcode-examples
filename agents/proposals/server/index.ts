@@ -1,20 +1,9 @@
-// The Railcode worker for the proposals reader.
-//
-// This app is mostly a READER: a personal agent runs on its own 30-minute
-// schedule, reads the owner's Granola meetings, and writes proposal records
-// and .docx files into this app's store. The worker reads what the agent left.
-//
-// The one thing it triggers is Run now, and the shape of that is the lesson:
-//
-//   The schedule lives on the AGENT, not on this app. A cron invocation has no
-//   caller, a run is owned by (app, user), so agents.start() from cron is a
-//   409. Correct, not a gap — a run of a PERSONAL agent with no owner has no
-//   Granola account to read.
+// Shared proposal reader/editor. The org agent runs on its own schedule.
+// Only the scheduler starts runs: it atomically skips overlap across replicas.
+// The flat app KV store cannot provide an equivalent lock for manual starts.
 import { Hono } from "hono";
-import { ApiError, agents, ctx, db, files } from "@railcode/sdk";
+import { ApiError, ctx, db, files } from "@railcode/sdk";
 
-const AGENT = "proposal-writer";
-const RUN_KEY = "manualRun";
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 interface ProposalRecord {
@@ -26,12 +15,6 @@ interface ProposalRecord {
   editedAt?: string;
   editedBy?: string;
   [key: string]: unknown;
-}
-
-interface ManualRun {
-  requestId: string;
-  startedAt: string;
-  startedBy?: string;
 }
 
 const app = new Hono();
@@ -66,15 +49,13 @@ app.get("/api/me", (c) => c.json({ user: caller() }));
 // platform calls from the browser; the worker is already next to the data, so
 // fanning out here and answering once is strictly cheaper.
 app.get("/api/state", async (c) => {
-  const [rows, scout, manualRun] = await Promise.all([
+  const [rows, scout] = await Promise.all([
     proposals().query().orderBy("createdAt", "desc").page(1, 200),
     state().get("scout"),
-    state().get(RUN_KEY),
   ]);
   return c.json({
     proposals: rows.map((r) => r.value),
     scout: scout ?? null,
-    manualRun: manualRun ?? null,
   });
 });
 
@@ -111,53 +92,6 @@ app.put("/api/proposals/:id/docx", async (c) => {
   };
   await proposals().put(record.id, next);
   return c.json(next);
-});
-
-// ── Run now ──────────────────────────────────────────────────────────────────
-app.post("/api/run", async (c) => {
-  const user = caller();
-  // `agents.start` rather than `agents.invoke`: a run is allowed 300 seconds and
-  // invoke would spend the invocation's subrequest budget polling for all of
-  // them. Nothing is passed as input, and that is not an oversight — the agent
-  // declares no input_schema and decides what to do from its own ledger.
-  const run = await agents.start(AGENT);
-  const marker: ManualRun = {
-    requestId: run.request_id,
-    startedAt: new Date().toISOString(),
-    startedBy: user.name || user.email,
-  };
-  // The marker is SHARED on purpose: it is what stops a second tab, or a
-  // colleague, from starting a run on top of one already going. Overlapping
-  // runs are the one thing the agent's ledger cannot defend against.
-  await state().put(RUN_KEY, marker as unknown as Record<string, unknown>);
-  return c.json(marker, 202);
-});
-
-// Poll one run. A run belongs to (app, caller), so the platform answers 404 for
-// a colleague's run — which is not an error here: the marker is shared, so
-// another member's tab knows a run is going and simply cannot watch its status.
-app.get("/api/run/:requestId", async (c) => {
-  try {
-    const run = await agents.get(c.req.param("requestId"));
-    return c.json({
-      mine: true,
-      status: run.status,
-      errorCode: run.error_code,
-      errorMessage: run.error_message,
-    });
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) {
-      return c.json({ mine: false, status: "running" });
-    }
-    throw err;
-  }
-});
-
-// Release the in-flight marker once a run is done. Advisory: if this fails the
-// marker ages out on the client's staleness cutoff instead of blocking forever.
-app.delete("/api/run", async (c) => {
-  await state().delete(RUN_KEY);
-  return c.body(null, 204);
 });
 
 export default app;
